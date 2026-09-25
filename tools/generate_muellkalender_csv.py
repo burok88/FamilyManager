@@ -14,7 +14,7 @@ import csv
 from datetime import date, timedelta
 from pathlib import Path
 
-OUT = Path(__file__).parent / "data" / "muellkalender.csv"
+OUT = Path(__file__).resolve().parent.parent / "data" / "muellkalender.csv"
 END = date(2026, 12, 31)
 
 WEEKDAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]

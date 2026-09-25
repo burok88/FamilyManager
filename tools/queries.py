@@ -4,7 +4,7 @@ from pathlib import Path
 
 import kuzu
 
-DB_PATH = Path(__file__).parent / "kuzu_db"
+DB_PATH = Path(__file__).resolve().parent.parent / "kuzu_db"
 
 
 def run(conn: kuzu.Connection, title: str, cypher: str) -> None:

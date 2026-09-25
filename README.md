@@ -1,17 +1,37 @@
-# Haushalts-Ontologie (Graphdatenbank)
+# FamilyManager (ontoFam)
 
-Ontologie für Struktur, Prozesse, Personen und Aufgaben im Haushalt — mit einem echten
-Müllkalender als Beispiel. Details zum Datenmodell: [ontologie-design.md](ontologie-design.md).
+Haushalts-Ontologie für Familien: Personen, Aufgaben, Termine und Stundenpläne als
+Kùzu-Graph — mit Google-Kalender-Abgleich, Erinnerungen über Home Assistant und einem
+MCP-Server für Claude. Läuft als Home-Assistant-App oder lokal auf dem PC. Details zum
+Datenmodell: [docs/ontologie-design.md](docs/ontologie-design.md).
 
-> **Nur für private, nicht-kommerzielle Nutzung.** Jede kommerzielle Nutzung ist strikt
-> untersagt. Das Projekt ist *source-available*, nicht Open Source — siehe [Lizenz](#lizenz).
+> **Nur für private, persönliche und akademische, nicht-kommerzielle Nutzung.** Jede
+> kommerzielle Nutzung ist strikt untersagt. Das Projekt ist *source-available*, nicht
+> Open Source — siehe [Lizenz](#lizenz).
+
+## Projektstruktur
+
+```
+├── server/            Flask-API + Kùzu-Datenbank — der Dienst selbst (PC und Container)
+│   └── static/        Weboberfläche
+├── ha-app/            Home-Assistant-App: config.yaml, Dockerfile, start.py, Übersetzungen
+├── mcp-server/        Anbindung an Claude Desktop/Code (MCP), Bau der Desktop-Erweiterung
+├── tools/             Kommandozeilen-Skripte: Datenbank anlegen, Müllkalender, Auswertungen
+├── data/              Rohdaten (Müllkalender)
+├── docs/              Designentscheidungen, früher Visualisierungs-Prototyp
+├── repository.yaml    macht das Repository zur App-Quelle für Home Assistant
+└── *.example.json     Vorlagen für die lokalen Einstellungen (Kalender, Erinnerungen)
+```
+
+Lokale Daten liegen im Projektordner und nie in Git: `kuzu_db` (Datenbank),
+`calendar_sources.json`, `erinnerungen.json`.
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt mcp pydantic
-python setup_schema.py   # NUR für den Neuanfang: löscht die Datenbank
-python load_data.py      # lädt Beispieldaten + Müllkalender-Quelldaten
+python tools/setup_schema.py   # NUR für den Neuanfang: löscht die Datenbank
+python tools/load_data.py      # lädt Beispieldaten + Müllkalender-Quelldaten
 ```
 
 Für eine bestehende Datenbank ist `setup_schema.py` **nicht** nötig: `app.py` führt beim
@@ -23,17 +43,17 @@ Log.
 ## Live-Modellierung (Web-App)
 
 ```bash
-python app.py             # startet lokal auf http://localhost:5000
+python server/app.py      # startet lokal auf http://localhost:5000
 ```
 
 Web-Oberfläche zum Anlegen/Löschen aller Bausteine (Personen, Struktur, Prozesse,
 Ressourcen, Aufgaben, Zuständigkeiten, Termine) direkt gegen die echte Kùzu-Datenbank,
 inkl. Live-Graph. **`app.py` ist der einzige Prozess, der die Datenbank hält** — Kùzu
 erlaubt nur einen Schreiber. Kalender-Import und MCP-Server laufen deshalb *über* die
-Flask-API, nicht direkt gegen die DB. Nur die alten CLI-Skripte (`queries.py`, `digest.py`,
-`reload_muellkalender.py`, `import_calendar.py`) brauchen einen gestoppten Server.
+Flask-API, nicht direkt gegen die DB. Nur die Skripte in `tools/` und
+`server/import_calendar.py` als Kommandozeile brauchen einen gestoppten Server.
 
-## Betrieb als Home-Assistant-Add-on
+## Betrieb als Home-Assistant-App
 
 Ziel ist, dass ontoFam rund um die Uhr läuft — auf dem Home-Assistant-Rechner statt auf
 dem PC.
@@ -42,19 +62,18 @@ dem PC.
 die URL `https://github.com/burok88/FamilyManager` eintragen, dann ontoFam installieren.
 Home Assistant lädt das fertige Image `ghcr.io/burok88/ontofam-amd64` — gebaut und
 geprüft von `.github/workflows/app-image.yml` bei jedem Push auf `main`. **Nach jeder
-Änderung die `version` in `homeassistant/ontofam/config.yaml` erhöhen**, sonst bietet Home
-Assistant kein Update an.
+Änderung die `version` in `ha-app/config.yaml` erhöhen**, sonst bietet Home Assistant
+kein Update an.
 
-`homeassistant/ontofam/` ist die Vorlage; `python build_addon.py` baut daraus
-`dist/homeassistant/ontofam/` (Vorlage plus Kopie der Programmdateien, keine Datenbank,
-keine Geheimnisse). Das nutzt der GitHub-Ablauf, und so lässt sich die App zur Not auch
-lokal über die Samba-Freigabe `addons` installieren.
+Das Image entsteht aus dem Projektordner (`docker build -f ha-app/Dockerfile .`) und
+enthält nur `requirements.txt`, `server/` und `ha-app/start.py` — `.dockerignore` hält
+Datenbank und Einstellungen heraus.
 
-| | PC | Add-on |
+| | PC | App |
 |---|---|---|
 | Datenbank | `kuzu_db` im Projektordner | `/config/kuzu_db` = Samba `addon_configs/<kennung>_ontofam/` |
 | Kalender, Erinnerungs-Zeiten | `calendar_sources.json`, `erinnerungen.json` | Reiter *Konfiguration* (`start.py` schreibt daraus dieselben Dateien nach `/data`) |
-| Zustellung der Erinnerungen | langlebiges Token in `erinnerungen.json` | Token des Add-ons (`homeassistant_api`) — nichts einzutragen |
+| Zustellung der Erinnerungen | langlebiges Token in `erinnerungen.json` | Token der App (`homeassistant_api`) — nichts einzutragen |
 | Oberfläche | http://localhost:5000 | Seitenleiste (Ingress) |
 | Claude Desktop | `http://localhost:5000` | `http://<HA-Adresse>:5000` + Zugriffsschlüssel |
 
@@ -79,7 +98,7 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 
 ## KI-Anbindung per MCP (Claude Desktop, Gemini CLI, Home Assistant)
 
-`mcp_server.py` stellt die Ontologie als 19 Tools bereit (u.a. `erinnerungen_vorschau`,
+`mcp-server/mcp_server.py` stellt die Ontologie als 19 Tools bereit (u.a. `erinnerungen_vorschau`,
 `erinnerung_testen`): `personen_auflisten`,
 `person_anlegen`, `aufgaben_auflisten`, `anstehende_aufgaben(tage, person)`,
 `aufgabe_anlegen(name, datum, person, betrifft, ort, uhrzeit, dauer_minuten, …)`,
@@ -91,15 +110,17 @@ Damit funktioniert z.B. *"Max muss Lena am Dienstag den 22. September zum Hautar
 bringen"* → die KI legt Aufgabe + Termin an und ordnet Max zu; *"Was steht diese Woche
 an?"* → Abfrage. Voraussetzung: `app.py` läuft.
 
-- **Claude Desktop**: `python build_mcpb.py` baut `dist/ontofam.mcpb`; installiert wird
+- **Claude Desktop**: `python mcp-server/build_mcpb.py` baut `dist/ontofam.mcpb`; installiert wird
   es über Einstellungen → Erweiterungen → Erweiterte Einstellungen → "Erweiterung
   installieren". Der Weg über `claude_desktop_config.json` funktioniert in aktuellen
   Versionen nicht mehr — die App überschreibt die Datei. Wichtig: die Erweiterung enthält
   eine **Kopie** von `mcp_server.py`; nach Änderungen daran neu bauen und neu installieren.
+  Bei der Installation fragt sie nach Adresse und Zugriffsschlüssel (lokal:
+  `http://localhost:5000`, Schlüssel leer).
 - **Claude Code**: `.mcp.json` im Projektverzeichnis registriert den Server automatisch.
 - **Gemini CLI**: gleicher stdio-Aufruf in den Gemini-CLI-Settings (`mcpServers`).
 - **Handy / Home Assistant**: Die Gemini-Handy-App kann keine eigenen MCP-Server
-  einbinden. Der gangbare Weg ist Home Assistant: `python mcp_server.py --http --host 0.0.0.0`
+  einbinden. Der gangbare Weg ist Home Assistant: `python mcp-server/mcp_server.py --http --host 0.0.0.0`
   startet den Server per Streamable HTTP (Port 8765); HA verbindet sich über die
   "Model Context Protocol"-Integration und stellt die Tools seinem KI-Gesprächsagenten
   (z.B. Google Generative AI / Gemini) zur Verfügung — nutzbar per Assist in der
@@ -274,7 +295,7 @@ Worauf es dabei ankommt:
 
 Sofort abgleichen, unabhängig vom Takt: Tool `kalender_synchronisieren` oder
 `curl -X POST http://localhost:5000/api/kalender/sync`. CLI ohne laufenden Server:
-`python import_calendar.py`.
+`python server/import_calendar.py`.
 
 Importierte Termine werden als Aufgaben mit Kategorie `Kalender-Import` angelegt (60-Tage-
 Fenster, wiederkehrende Ereignisse werden aufgelöst, Uhrzeit/Dauer/`LOCATION` kommen mit,
@@ -316,19 +337,19 @@ Calendar-API mit OAuth (bewusst noch nicht umgesetzt).
 ## Ausprobieren
 
 ```bash
-python queries.py        # Beispiel-Abfragen (u.a. "wer ist wann für welche Tonne zuständig")
-python digest.py         # Erinnerungs-Digest pro Person -> export/digest.json
-python export_graph.py   # Graph-Export für die Visualisierungs-Seite -> export/graph.json
+python tools/queries.py         # Beispiel-Abfragen (u.a. "wer ist wann für welche Tonne zuständig")
+python tools/digest.py          # Erinnerungs-Digest pro Person -> export/digest.json
+python server/export_graph.py   # Graph-Export für die Visualisierungs-Seite -> export/graph.json
 ```
 
-Die Visualisierungs-Seite (`visualisierung.html`) ist als Artifact veröffentlicht und bettet
-den Export als statischen Snapshot ein. Nach Änderungen an den Daten: `export_graph.py` und
+Der frühe Prototyp `docs/visualisierung.html` bettet den Export als statischen Snapshot
+ein. Nach Änderungen an den Daten: `export_graph.py` und
 `digest.py` neu ausführen und die JSON-Ausgaben erneut in `visualisierung.html` einbetten
 (`__INSTANCE_GRAPH__` / `__DIGEST__` ersetzen), dann erneut veröffentlichen.
 
 ## Müllkalender-Daten
 
-`data/muellkalender.csv` wird **regelbasiert generiert** (`generate_muellkalender_csv.py`),
+`data/muellkalender.csv` wird **regelbasiert generiert** (`tools/generate_muellkalender_csv.py`),
 nicht aus dem Kalenderbild abgetippt — Pixelfarben ließen sich nicht zuverlässig genug
 unterscheiden. Bestätigte Rhythmen (Stand 2026):
 
@@ -339,8 +360,8 @@ unterscheiden. Bestätigte Rhythmen (Stand 2026):
 | Biotonne (braunes B) | alle 2 Wochen, Donnerstag, ab 09.07.2026 (Ausnahme: 24.12. → 23.12.) |
 | Papiertonne (grünes C) | alle 4 Wochen, Mittwoch, ab 08.07.2026 |
 
-Nach einer Regeländerung: `python generate_muellkalender_csv.py` (schreibt die CSV neu) und
-`python reload_muellkalender.py` (ersetzt nur die Termin-Knoten in der laufenden DB, lässt
+Nach einer Regeländerung: `python tools/generate_muellkalender_csv.py` (schreibt die CSV neu) und
+`python tools/reload_muellkalender.py` (ersetzt nur die Termin-Knoten in der laufenden DB, lässt
 Personen/Struktur/Aufgaben unangetastet — dafür vorher `app.py` stoppen, da Kùzu nur einen
 schreibenden Prozess gleichzeitig zulässt).
 
@@ -349,9 +370,9 @@ schreibenden Prozess gleichzeitig zulässt).
 - **Schreiben in den Google-Kalender** (Calendar-API + OAuth), damit KI-Einträge auch im
   Kalender landen.
 - **Assist in Home Assistant** (Gemini oder Claude als Gesprächsagent): `mcp_server.py
-  --http` im Add-on mitlaufen lassen und über die MCP-Integration von Home Assistant
+  --http` in der App mitlaufen lassen und über die MCP-Integration von Home Assistant
   einbinden — dieselben Werkzeuge wie in Claude Desktop, auch unterwegs per Handy.
-- **Müllkalender im Add-on**: `reload_muellkalender.py` greift direkt auf die Datei zu;
+- **Müllkalender in der App**: `tools/reload_muellkalender.py` greift direkt auf die Datei zu;
   bis zum nächsten Jahreswechsel über die API umbauen.
 - **GraphRAG weiter**: Längere Freitexte (Elternbriefe, Anleitungen) als `Dokument`
   mit Zerlegung in Abschnitte und Volltextsuche über die `fts`-Erweiterung (deutscher
@@ -361,7 +382,13 @@ schreibenden Prozess gleichzeitig zulässt).
 
 ## Lizenz
 
-**Die kommerzielle Nutzung ist strikt untersagt.** ontoFam steht unter einer eigenen,
-nicht-kommerziellen Lizenz: [LICENSE.txt](LICENSE.txt). Der Quelltext ist öffentlich
+**Die kommerzielle Nutzung ist strikt untersagt.** Das gilt auch für Verkauf, Vermietung
+und den Einbau in kommerzielle Produkte, Dienstleistungen oder Unternehmensabläufe;
+Ausnahmen nur mit schriftlicher Genehmigung des Repository-Inhabers.
+
+FamilyManager (ontoFam) steht unter einer eigenen, nicht-kommerziellen Lizenz:
+[LICENSE.txt](LICENSE.txt) (englisch, maßgeblich). Der Quelltext ist öffentlich
 einsehbar (*source-available*), aber keine Open-Source-Software — es gilt keine MIT-,
-Apache- oder GPL-Lizenz. Nutzung nur privat und nicht-kommerziell.
+Apache- oder GPL-Lizenz. Kostenfreie Nutzung nur für private, persönliche und
+akademische Zwecke. Das Projekt wurde mit Hilfe von KI-Systemen erstellt (Vibe Coding)
+und wird ohne Gewähr bereitgestellt.

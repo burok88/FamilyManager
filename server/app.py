@@ -1,9 +1,9 @@
 """Web-App und HTTP-API der Haushalts-Ontologie -- der einzige Prozess, der die
 Kùzu-Graphdatenbank oeffnet.
 
-Auf dem PC: `python app.py`, dann http://localhost:5000 (nur vom eigenen Rechner
+Auf dem PC: `python server/app.py`, dann http://localhost:5000 (nur vom eigenen Rechner
 erreichbar). Als Home-Assistant-Add-on steuern Umgebungsvariablen Pfade, Adresse und
-Zugriffsschutz (siehe homeassistant/ontofam/start.py).
+Zugriffsschutz (siehe ha-app/start.py).
 """
 
 import hmac
@@ -33,10 +33,12 @@ from import_calendar import (
 from erinnerungen import faellige, kanal_fuer, lade_einstellungen, nachricht, plane, sende
 from schema import ERLEDIGUNG_STATUS, WOCHEN, WOCHENTAGE, migriere, wochentag_nummer
 
-BASE = Path(__file__).parent
+# Projektordner (eine Ebene ueber server/): dort liegen Datenbank und Einstellungen,
+# ausserhalb von Git. Im Container setzt start.py die Pfade per Umgebungsvariable.
+PROJEKT = Path(__file__).resolve().parent.parent
 # Ueberschreibbar, damit sich die App gegen eine Kopie der Datenbank testen laesst --
 # und damit die Datenbank im Add-on in einem Ordner liegt, der Updates ueberlebt.
-DB_PATH = Path(os.environ.get("ONTOFAM_DB", BASE / "kuzu_db"))
+DB_PATH = Path(os.environ.get("ONTOFAM_DB", PROJEKT / "kuzu_db"))
 # Kuzu reserviert sich ohne Grenze bis zu 80 % des Arbeitsspeichers als Puffer. Auf dem
 # Home-Assistant-Rechner teilt es sich den Speicher mit Home Assistant. 0 = Kuzu-Standard.
 PUFFER_MB = int(os.environ.get("ONTOFAM_PUFFER_MB", 0))

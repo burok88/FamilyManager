@@ -4,7 +4,7 @@ Claude Desktop schreibt claude_desktop_config.json laufend aus dem eigenen Speic
 zurueck -- Aenderungen bei laufender App gehen verloren. Deshalb:
 
   1. Claude Desktop komplett beenden (auch im System-Tray: Rechtsklick -> Beenden)
-  2. python claude_desktop_setup.py
+  2. python mcp-server/claude_desktop_setup.py
   3. Claude Desktop starten, im Chat-Tab unter "+" / "Search and tools" erscheint "ontofam"
 """
 

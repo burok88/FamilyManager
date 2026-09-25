@@ -15,9 +15,9 @@ Port 5000 mit dem Zugriffsschlüssel zu.
 ## Datenbank
 
 Die Datenbank liegt in `addon_configs/<kennung>_ontofam/kuzu_db` (Samba-Freigabe). Zum
-Ersetzen das Add-on **stoppen**, `kuzu_db` überschreiben, eine vorhandene
+Ersetzen die App **stoppen**, `kuzu_db` überschreiben, eine vorhandene
 `kuzu_db.wal` löschen, wieder starten. Backups von Home Assistant enthalten die
-Datenbank; das Add-on wird dafür kurz gestoppt.
+Datenbank; die App wird dafür kurz gestoppt.
 
 ## Fehler
 

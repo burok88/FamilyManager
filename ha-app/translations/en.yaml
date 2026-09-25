@@ -1,0 +1,27 @@
+configuration:
+  kalender:
+    name: Calendars
+    description: >-
+      Google calendars ontoFam reads. Address from Google Calendar → Settings →
+      calendar → "Secret address in iCal format". The name is up to you.
+  zugriffsschluessel:
+    name: Access key
+    description: >-
+      At least 20 random characters, e.g. from a password manager. Claude Desktop needs
+      the same key. Empty: only the sidebar works.
+  empfaenger:
+    name: Send reminders to
+    description: >-
+      Per person, the notify service of their phone, e.g. person "Max", service
+      "notify.mobile_app_max_phone" (Developer tools → Actions).
+  abend:
+    name: Reminder on the evening before at
+  morgen:
+    name: Same-day reminder at
+    description: For tasks with lead time 0.
+  stunden_vorher:
+    name: Hours before appointments with a time
+  speicher_mb:
+    name: Database memory (MB)
+network:
+  5000/tcp: API for Claude Desktop (access key required)

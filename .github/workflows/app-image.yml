@@ -9,10 +9,9 @@ on:
   push:
     branches: [main]
     paths:
-      - "*.py"
-      - "static/**"
+      - "server/**"
+      - "ha-app/**"
       - "requirements.txt"
-      - "homeassistant/**"
       - ".github/workflows/app-image.yml"
   workflow_dispatch:
 
@@ -26,17 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: App-Ordner zusammenstellen
-        run: python build_addon.py
-
       - name: Version und Image-Name
         id: meta
         run: |
-          version=$(sed -n 's/^version: "\(.*\)"$/\1/p' homeassistant/ontofam/config.yaml)
+          version=$(sed -n 's/^version: "\(.*\)"$/\1/p' ha-app/config.yaml)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ontofam-amd64" >> "$GITHUB_OUTPUT"
 
@@ -45,7 +37,7 @@ jobs:
           docker build
           --build-arg BUILD_VERSION=${{ steps.meta.outputs.version }}
           -t ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
-          dist/homeassistant/ontofam
+          -f ha-app/Dockerfile .
 
       # Vor dem Veroeffentlichen: app.py im Container laden -- das oeffnet eine leere
       # Datenbank und legt das Schema an. Faengt fehlende Pakete und CPU-Probleme ab.

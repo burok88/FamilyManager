@@ -26,7 +26,7 @@ import requests
 
 from schema import WOCHENTAGE
 
-EINSTELLUNGEN_PATH = Path(os.environ.get("ONTOFAM_DATEN", Path(__file__).parent)) / "erinnerungen.json"
+EINSTELLUNGEN_PATH = Path(os.environ.get("ONTOFAM_DATEN", Path(__file__).resolve().parent.parent)) / "erinnerungen.json"
 STANDARD = {
     "abend": "19:00",
     "morgen": "07:00",

@@ -10,10 +10,13 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Gebaut vom Projektordner aus (docker build -f ha-app/Dockerfile .): der Container
+# bekommt den Server aus server/ und das Startskript der App, sonst nichts.
 WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install -r requirements.txt waitress==3.0.2
 
-COPY app/ /app/
+COPY server/ /app/
+COPY ha-app/start.py /app/
 
 CMD ["python", "/app/start.py"]

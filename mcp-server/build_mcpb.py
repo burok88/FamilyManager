@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 
 BASE = Path(__file__).parent
-DIST = BASE / "dist"
+DIST = BASE.parent / "dist"
 OUT = DIST / "ontofam.mcpb"
 
 MANIFEST = {

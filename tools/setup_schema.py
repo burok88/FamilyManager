@@ -5,13 +5,16 @@ Migration aus schema.py aus, neue Tabellen und Felder kommen also ohne Datenverl
 dazu. Dieses Skript ist nur fuer den bewussten Neuanfang gedacht.
 """
 
+import sys
 from pathlib import Path
 
 import kuzu
 
-from schema import migriere
+BASE = Path(__file__).resolve().parent.parent  # Projektordner
+sys.path.insert(0, str(BASE / "server"))
+from schema import migriere  # noqa: E402
 
-DB_PATH = Path(__file__).parent / "kuzu_db"
+DB_PATH = BASE / "kuzu_db"
 
 
 def main() -> None:

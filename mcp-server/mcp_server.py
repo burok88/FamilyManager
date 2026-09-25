@@ -6,9 +6,9 @@ Kuzu-Zugriff: Kuzu erlaubt nur einen schreibenden Prozess, und der ist app.py.
 app.py muss also laufen.
 
 Start:
-  python mcp_server.py            # stdio (Claude Desktop, Gemini CLI)
-  python mcp_server.py --http     # Streamable HTTP auf http://127.0.0.1:8765/mcp
-  python mcp_server.py --http --host 0.0.0.0   # im LAN erreichbar (z.B. Home Assistant)
+  python mcp-server/mcp_server.py            # stdio (Claude Desktop, Gemini CLI)
+  python mcp-server/mcp_server.py --http     # Streamable HTTP auf http://127.0.0.1:8765/mcp
+  python mcp-server/mcp_server.py --http --host 0.0.0.0   # im LAN erreichbar (z.B. Home Assistant)
 """
 
 import argparse

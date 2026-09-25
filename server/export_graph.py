@@ -5,7 +5,7 @@ from pathlib import Path
 
 import kuzu
 
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parent.parent  # Projektordner
 DB_PATH = BASE / "kuzu_db"
 EXPORT_PATH = BASE / "export" / "graph.json"
 

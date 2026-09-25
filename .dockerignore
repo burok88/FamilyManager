@@ -1,0 +1,8 @@
+# Copyright (c) 2026. Erstellt via Vibe Coding. Nur für private und nicht-kommerzielle Nutzung.
+# Das Image braucht nur requirements.txt, server/ und ha-app/start.py. Vor allem die
+# lokale Datenbank und Einstellungen mit Geheimnissen gehoeren nicht in den Build.
+*
+!requirements.txt
+!server/
+!ha-app/start.py
+**/__pycache__

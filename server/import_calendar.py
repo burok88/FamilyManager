@@ -29,7 +29,7 @@ import recurring_ical_events
 import requests
 from icalendar import Calendar
 
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parent.parent  # Projektordner
 DB_PATH = BASE / "kuzu_db"
 # Im Add-on liegt die Datei nicht im Programmordner, sondern bei den Einstellungen.
 SOURCES_PATH = Path(os.environ.get("ONTOFAM_DATEN", BASE)) / "calendar_sources.json"

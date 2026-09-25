@@ -1,9 +1,9 @@
 name: ontoFam
-version: "0.9.0"
+version: "0.9.1"
 slug: ontofam
 url: https://github.com/burok88/FamilyManager
-# Fertiges Image aus der GitHub Container Registry (gebaut von .github/workflows/
-# app-image.yml, Tag = version). Home Assistant baut dann nicht selbst.
+# Fertiges Image aus der GitHub Container Registry (gebaut von
+# .github/workflows/app-image.yml, Tag = version). Home Assistant baut nicht selbst.
 image: ghcr.io/burok88/ontofam-{arch}
 description: Haushalts-Ontologie der Familie – Aufgaben, Termine, Stundenpläne, Erinnerungen
 arch:

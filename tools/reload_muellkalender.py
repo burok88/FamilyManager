@@ -12,14 +12,16 @@ Greift direkt auf die Datenbank zu: vorher app.py beenden.
 """
 
 import csv
+import sys
 from datetime import date
 from pathlib import Path
 
 import kuzu
 
-from import_calendar import entferne_verwaiste_erledigungen
+BASE = Path(__file__).resolve().parent.parent  # Projektordner
+sys.path.insert(0, str(BASE / "server"))
+from import_calendar import entferne_verwaiste_erledigungen  # noqa: E402
 
-BASE = Path(__file__).parent
 DB_PATH = BASE / "kuzu_db"
 CSV_PATH = BASE / "data" / "muellkalender.csv"
 
