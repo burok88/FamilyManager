@@ -23,5 +23,9 @@ configuration:
     name: Hours before appointments with a time
   speicher_mb:
     name: Database memory (MB)
+  assist:
+    name: Tools for Assist (MCP)
+    description: >-
+      MCP server for the “Model Context Protocol” integration, so Gemini & co. in Assist can read and fill ontoFam. Only reachable inside Home Assistant's internal network; the address is shown in the log.
 network:
   5000/tcp: API for Claude Desktop (access key required)

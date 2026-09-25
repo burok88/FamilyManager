@@ -8,7 +8,9 @@ app.py muss also laufen.
 Start:
   python mcp-server/mcp_server.py            # stdio (Claude Desktop, Gemini CLI)
   python mcp-server/mcp_server.py --http     # Streamable HTTP auf http://127.0.0.1:8765/mcp
-  python mcp-server/mcp_server.py --http --host 0.0.0.0   # im LAN erreichbar (z.B. Home Assistant)
+  python mcp-server/mcp_server.py --http --host 0.0.0.0   # im LAN erreichbar
+  python mcp-server/mcp_server.py --sse --host 0.0.0.0    # SSE auf :8765/sse -- so spricht die
+                                                           # MCP-Integration von Home Assistant
 """
 
 import argparse
@@ -442,11 +444,15 @@ def kalender_synchronisieren(neu_aufbauen: bool = False) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--http", action="store_true", help="Streamable HTTP statt stdio")
+    # Die MCP-Integration von Home Assistant kennt nur SSE.
+    parser.add_argument("--sse", action="store_true", help="SSE statt stdio (Home Assistant)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
 
-    if args.http:
+    if args.sse:
+        server.run(transport="sse", host=args.host, port=args.port)
+    elif args.http:
         server.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         server.run(transport="stdio")

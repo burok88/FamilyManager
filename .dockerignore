@@ -5,4 +5,5 @@
 !requirements.txt
 !server/
 !ha-app/start.py
+!mcp-server/mcp_server.py
 **/__pycache__

@@ -1,5 +1,5 @@
 name: ontoFam
-version: "0.9.1"
+version: "0.10.0"
 slug: ontofam
 url: https://github.com/burok88/FamilyManager
 # Fertiges Image aus der GitHub Container Registry (gebaut von
@@ -43,6 +43,7 @@ options:
   morgen: "07:00"
   stunden_vorher: 2
   speicher_mb: 512
+  assist: true
 schema:
   kalender:
     - name: str
@@ -55,3 +56,4 @@ schema:
   morgen: match(^([01][0-9]|2[0-3]):[0-5][0-9]$)
   stunden_vorher: int(0,24)
   speicher_mb: int(128,4096)
+  assist: bool

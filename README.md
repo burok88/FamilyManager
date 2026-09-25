@@ -29,7 +29,7 @@ Lokale Daten liegen im Projektordner und nie in Git: `kuzu_db` (Datenbank),
 ## Setup
 
 ```bash
-pip install -r requirements.txt mcp pydantic
+pip install -r requirements.txt
 python tools/setup_schema.py   # NUR für den Neuanfang: löscht die Datenbank
 python tools/load_data.py      # lädt Beispieldaten + Müllkalender-Quelldaten
 ```
@@ -119,12 +119,13 @@ an?"* → Abfrage. Voraussetzung: `app.py` läuft.
   `http://localhost:5000`, Schlüssel leer).
 - **Claude Code**: `.mcp.json` im Projektverzeichnis registriert den Server automatisch.
 - **Gemini CLI**: gleicher stdio-Aufruf in den Gemini-CLI-Settings (`mcpServers`).
-- **Handy / Home Assistant**: Die Gemini-Handy-App kann keine eigenen MCP-Server
-  einbinden. Der gangbare Weg ist Home Assistant: `python mcp-server/mcp_server.py --http --host 0.0.0.0`
-  startet den Server per Streamable HTTP (Port 8765); HA verbindet sich über die
-  "Model Context Protocol"-Integration und stellt die Tools seinem KI-Gesprächsagenten
-  (z.B. Google Generative AI / Gemini) zur Verfügung — nutzbar per Assist in der
-  HA-Companion-App. Claude-Handy-App ginge alternativ über einen Remote-Connector, dann
+- **Handy / Home Assistant (Assist mit Gemini)**: Die Gemini-Handy-App kann keine
+  eigenen MCP-Server einbinden; der Weg führt über Home Assistant. Die App startet
+  `mcp_server.py --sse` neben dem Server (Option *Werkzeuge für Assist*, Port 8765, nur im
+  internen Netz von Home Assistant). Die Integration „Model Context Protocol“ — sie
+  spricht nur SSE — verbindet sich damit und reicht die Werkzeuge an den
+  Gesprächsagenten (z.B. Google Generative AI / Gemini) weiter, nutzbar per Assist in der
+  Companion-App. Einrichtung und Anweisungen für den Agenten: [ha-app/DOCS.md](ha-app/DOCS.md). Claude-Handy-App ginge alternativ über einen Remote-Connector, dann
   müsste der Server aber aus dem Internet erreichbar und abgesichert sein.
 
 ## Termine mit Ort und Dauer, Betroffene, Stundenpläne
@@ -369,9 +370,6 @@ schreibenden Prozess gleichzeitig zulässt).
 
 - **Schreiben in den Google-Kalender** (Calendar-API + OAuth), damit KI-Einträge auch im
   Kalender landen.
-- **Assist in Home Assistant** (Gemini oder Claude als Gesprächsagent): `mcp_server.py
-  --http` in der App mitlaufen lassen und über die MCP-Integration von Home Assistant
-  einbinden — dieselben Werkzeuge wie in Claude Desktop, auch unterwegs per Handy.
 - **Müllkalender in der App**: `tools/reload_muellkalender.py` greift direkt auf die Datei zu;
   bis zum nächsten Jahreswechsel über die API umbauen.
 - **GraphRAG weiter**: Längere Freitexte (Elternbriefe, Anleitungen) als `Dokument`

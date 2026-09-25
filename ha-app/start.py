@@ -9,6 +9,7 @@ app.py. Geheimnisse (Kalenderadresse, Zugriffsschluessel) erscheinen nie im Prot
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,9 @@ DATENBANK = Path("/config/kuzu_db")
 # Von dieser Adresse reicht Home Assistant die Seitenleiste (Ingress) weiter. Wer dort
 # ankommt, ist schon bei Home Assistant angemeldet.
 SUPERVISOR = "172.30.32.2"
+# MCP-Server fuer Assist. Der Port ist nicht nach aussen freigegeben: erreichbar nur im
+# internen Netz von Home Assistant, unter dem Hostnamen dieser App.
+MCP_PORT = 8765
 
 
 def kuzu_pruefen() -> None:
@@ -35,6 +39,17 @@ def kuzu_pruefen() -> None:
         sys.exit(1)
     if probe.returncode != 0:
         sys.exit(f"FEHLER: Kuzu laesst sich nicht starten (Rueckgabewert {probe.returncode}).")
+
+
+def mcp_starten() -> None:
+    """Startet den MCP-Server als Nebenprozess. Er ruft die API ueber localhost auf und
+    braucht deshalb keinen Zugriffsschluessel. Er laeuft weiter, wenn sich dieser Prozess
+    gleich per exec durch app.py ersetzt, und endet mit dem Container."""
+    subprocess.Popen([sys.executable, str(Path(__file__).parent / "mcp_server.py"),
+                      "--sse", "--host", "0.0.0.0", "--port", str(MCP_PORT)],
+                     env=dict(os.environ, ONTOFAM_API="http://127.0.0.1:5000"))
+    print(f"Werkzeuge fuer Assist: Integration 'Model Context Protocol' mit "
+          f"http://{socket.gethostname()}:{MCP_PORT}/sse", flush=True)
 
 
 def main() -> None:
@@ -77,6 +92,8 @@ def main() -> None:
         "ONTOFAM_VERTRAUTE_ADRESSEN": SUPERVISOR,
         "ONTOFAM_PUFFER_MB": str(optionen["speicher_mb"]),
     })
+    if optionen.get("assist", True):
+        mcp_starten()
     sys.stdout.flush()
     # exec statt Unterprozess: app.py bekommt das SIGTERM von Home Assistant direkt.
     os.execv(sys.executable, [sys.executable, str(Path(__file__).parent / "app.py")])

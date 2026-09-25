@@ -17,6 +17,6 @@ COPY requirements.txt /app/
 RUN pip install -r requirements.txt waitress==3.0.2
 
 COPY server/ /app/
-COPY ha-app/start.py /app/
+COPY mcp-server/mcp_server.py ha-app/start.py /app/
 
 CMD ["python", "/app/start.py"]

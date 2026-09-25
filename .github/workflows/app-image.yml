@@ -11,6 +11,7 @@ on:
     paths:
       - "server/**"
       - "ha-app/**"
+      - "mcp-server/mcp_server.py"
       - "requirements.txt"
       - ".github/workflows/app-image.yml"
   workflow_dispatch:
@@ -44,8 +45,20 @@ jobs:
       - name: Image pruefen
         run: >
           docker run --rm -e ONTOFAM_DB=/tmp/test_db ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
-          python -c "import sys; sys.path.insert(0, '/app'); import waitress, app;
+          python -c "import sys; sys.path.insert(0, '/app'); import waitress, app, mcp_server;
           print('ok:', sorted(app.VERTRAUTE_ADRESSEN), app.DB_PATH)"
+
+      # Der MCP-Server fuer Assist muss per SSE antworten -- so, wie Home Assistant ihn anspricht.
+      - name: MCP-Server (SSE) pruefen
+        run: |
+          docker run -d --name mcp -p 8765:8765 ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }} \
+            python /app/mcp_server.py --sse --host 0.0.0.0 --port 8765
+          for i in $(seq 1 20); do
+            antwort=$(curl -s -m 2 http://localhost:8765/sse || true)
+            echo "$antwort" | grep -q "event: endpoint" && { echo "SSE ok"; docker rm -f mcp; exit 0; }
+            sleep 1
+          done
+          docker logs mcp; exit 1
 
       - uses: docker/login-action@v3
         with:

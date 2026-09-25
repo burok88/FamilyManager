@@ -12,5 +12,6 @@ tzdata==2026.4
 pandas==2.3.0
 numpy==2.3.1
 
-# Nur fuer den MCP-Server (mcp_server.py, Claude Desktop):
-#   pip install mcp==2.2.0 pydantic==2.13.5
+# MCP-Server (mcp-server/mcp_server.py) -- fuer Claude Desktop und Assist in Home Assistant.
+mcp==2.2.0
+pydantic==2.13.5
