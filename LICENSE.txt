@@ -1,0 +1,80 @@
+ontoFam / FamilyManager – Lizenz für private, nicht-kommerzielle Nutzung
+=========================================================================
+
+Copyright (c) 2026 burok88 (https://github.com/burok88). Alle Rechte vorbehalten,
+soweit sie nicht unten ausdrücklich eingeräumt werden.
+
+Short English summary: You may view, use and modify this software for private,
+non-commercial purposes only. Any commercial use is strictly prohibited. The German
+text below is the binding version.
+
+
+1. Gegenstand
+
+Diese Lizenz gilt für den Quelltext, die Dokumentation und alle weiteren Dateien dieses
+Repositorys sowie für daraus erstellte Container-Images und Pakete (zusammen „die
+Software“), soweit sie nicht von Dritten stammen (siehe Abschnitt 5).
+
+
+2. Erlaubt – ausschließlich privat und nicht-kommerziell
+
+Natürlichen Personen wird unentgeltlich das einfache, nicht übertragbare Recht
+eingeräumt,
+
+  a) die Software anzusehen, herunterzuladen, zu installieren und zu nutzen,
+  b) die Software für eigene Zwecke zu verändern und zu erweitern,
+  c) die Software oder veränderte Fassungen unentgeltlich weiterzugeben, sofern diese
+     Lizenz vollständig und unverändert beiliegt und der Copyright-Hinweis erhalten
+     bleibt,
+
+jeweils nur für private, nicht-kommerzielle Zwecke, etwa im eigenen Haushalt oder zum
+Lernen.
+
+
+3. Verboten – jede kommerzielle Nutzung
+
+Jede kommerzielle Nutzung ist strikt untersagt. Kommerziell ist insbesondere,
+
+  a) die Software oder Teile davon zu verkaufen, zu vermieten oder zu lizenzieren,
+  b) sie in Produkte, Dienstleistungen oder Angebote einzubauen, für die ein Entgelt,
+     eine Gebühr, ein Abonnement oder eine andere Gegenleistung verlangt wird,
+  c) sie als gehosteten Dienst für Dritte zu betreiben, entgeltlich oder zur Werbung
+     für ein entgeltliches Angebot,
+  d) sie in oder für ein Unternehmen, eine Behörde oder eine Organisation zu deren
+     geschäftlichen Zwecken zu nutzen,
+  e) mit ihr auf andere Weise unmittelbar oder mittelbar Einnahmen zu erzielen.
+
+Eine kommerzielle Nutzung ist nur mit vorheriger schriftlicher Genehmigung des
+Rechteinhabers erlaubt.
+
+
+4. Weitere Bedingungen
+
+  a) Eine Unterlizenzierung oder eine Weitergabe unter anderen Bedingungen ist nicht
+     erlaubt.
+  b) Die Software ist „source-available“: Der Quelltext ist öffentlich einsehbar, sie
+     ist aber keine Open-Source-Software im Sinne der Open Source Definition.
+  c) Wer gegen diese Lizenz verstößt, verliert alle Rechte aus ihr mit sofortiger
+     Wirkung.
+
+
+5. Software Dritter
+
+Die Software nutzt Bibliotheken Dritter (u.a. Kùzu, Flask, pandas, icalendar). Diese
+stehen unter ihren eigenen Lizenzen, die von dieser Lizenz unberührt bleiben.
+
+
+6. Gewährleistung und Haftung
+
+Die Software wird unentgeltlich und so, wie sie ist, zur Verfügung gestellt – ohne
+Gewähr für Richtigkeit, Vollständigkeit oder Eignung für einen bestimmten Zweck.
+Insbesondere übernimmt der Rechteinhaber keine Gewähr dafür, dass Termine,
+Erinnerungen oder Kalenderdaten vollständig, richtig oder rechtzeitig verarbeitet
+werden. Die Haftung des Rechteinhabers ist, soweit gesetzlich zulässig, auf Vorsatz und
+grobe Fahrlässigkeit beschränkt.
+
+
+7. Recht
+
+Es gilt das Recht der Bundesrepublik Deutschland. Sollte eine Bestimmung unwirksam sein,
+bleiben die übrigen Bestimmungen wirksam.

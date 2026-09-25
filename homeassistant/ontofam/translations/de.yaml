@@ -1,0 +1,27 @@
+configuration:
+  kalender:
+    name: Kalender
+    description: >-
+      Google-Kalender, die ontoFam liest. Adresse aus Google Kalender → Einstellungen →
+      Kalender → „Privatadresse im iCal-Format“. Der Name ist frei wählbar.
+  zugriffsschluessel:
+    name: Zugriffsschlüssel
+    description: >-
+      Mindestens 20 zufällige Zeichen, z.B. aus einem Passwortmanager. Claude Desktop
+      braucht denselben Schlüssel. Leer: nur die Seitenleiste funktioniert.
+  empfaenger:
+    name: Erinnerungen an
+    description: >-
+      Je Person der Benachrichtigungsdienst ihres Handys, z.B. Person „Max“, Dienst
+      „notify.mobile_app_max_handy“ (Entwicklerwerkzeuge → Aktionen).
+  abend:
+    name: Erinnerung am Vorabend um
+  morgen:
+    name: Erinnerung am selben Tag um
+    description: Für Aufgaben mit Vorlaufzeit 0.
+  stunden_vorher:
+    name: Stunden vor Terminen mit Uhrzeit
+  speicher_mb:
+    name: Speicher für die Datenbank (MB)
+network:
+  5000/tcp: Schnittstelle für Claude Desktop (nur mit Zugriffsschlüssel)

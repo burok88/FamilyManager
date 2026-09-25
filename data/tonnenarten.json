@@ -1,0 +1,26 @@
+[
+  {
+    "code": "restmuell-schwarz",
+    "name": "Restmüll",
+    "farbe": "schwarz",
+    "kalender_buchstabe": "C"
+  },
+  {
+    "code": "biotonne-braun",
+    "name": "Biotonne",
+    "farbe": "braun",
+    "kalender_buchstabe": "B"
+  },
+  {
+    "code": "gelber-sack-gelb",
+    "name": "Gelber Sack",
+    "farbe": "gelb",
+    "kalender_buchstabe": "C"
+  },
+  {
+    "code": "papier-gruen",
+    "name": "Papiertonne",
+    "farbe": "grün",
+    "kalender_buchstabe": "C"
+  }
+]

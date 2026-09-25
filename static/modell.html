@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haushalts-Ontologie · Modellierung</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f3ec;
+    --surface: #ffffff;
+    --surface-2: #efeade;
+    --ink: #22201b;
+    --ink-soft: #5b564b;
+    --border: #dad3c4;
+    --accent: #1f5c52;
+    --accent-ink: #ffffff;
+    --danger: #a5432f;
+
+    --node-person: #b5495b;
+    --node-struktur: #3e5c76;
+    --node-aufgabe: #c08a2e;
+    --node-prozess: #6b5b95;
+    --node-termin: #8a8578;
+    --node-restmuell: #2b2b28;
+    --node-biotonne: #7a5230;
+    --node-gelbersack: #c99a12;
+    --node-papier: #3f7a45;
+
+    --font-display: "Fraunces", ui-serif, Georgia, serif;
+    --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.6rem, 3vw, 2.1rem);
+    margin: 0;
+  }
+
+  header p { max-width: 68ch; color: var(--ink-soft); margin: 0; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0 0 0.85rem;
+  }
+
+  h2 .count {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+
+  .bausteine {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  @media (max-width: 1080px) {
+    .bausteine { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .verknuepfungen {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  @media (max-width: 1080px) {
+    .verknuepfungen { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  label {
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  input, select {
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  button {
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.85rem;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 0.85rem;
+    cursor: pointer;
+  }
+
+  button.primary { background: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { opacity: 0.92; }
+
+  .status { font-size: 0.78rem; min-height: 1.1em; }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--accent); }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.86rem;
+  }
+
+  .row:first-child { border-top: none; }
+  .row .main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .row .name { font-weight: 500; }
+  .row .sub { font-size: 0.74rem; color: var(--ink-soft); }
+
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    padding: 0.08rem 0.4rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .row button.delete {
+    background: transparent;
+    color: var(--danger);
+    padding: 0.15rem 0.35rem;
+    font-size: 0.76rem;
+    flex-shrink: 0;
+  }
+  .row button.delete:hover { background: var(--surface-2); }
+
+  .empty { color: var(--ink-soft); font-size: 0.82rem; }
+
+  #network {
+    height: 600px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Ontologie · Live-Modellierung · lokal</span>
+    <h1>Haushalts-Ontologie modellieren</h1>
+    <p>Läuft lokal gegen die echte Kùzu-Datenbank (kuzu_db). Änderungen sind sofort im Graph sichtbar und bleiben auch beim nächsten Start erhalten. Nur ein Prozess darf gleichzeitig auf die Datenbank zugreifen — andere Skripte nicht parallel zu dieser App laufen lassen.</p>
+  </header>
+
+  <section class="bausteine">
+    <div class="panel">
+      <h2>Personen</h2>
+      <form id="form-person">
+        <label>Name <input type="text" id="person-name" required></label>
+        <label>Rolle
+          <select id="person-rolle">
+            <option value="Elternteil">Elternteil</option>
+            <option value="Kind">Kind</option>
+            <option value="Sonstiges">Sonstiges</option>
+          </select>
+        </label>
+        <button type="submit" class="primary">Hinzufügen</button>
+        <div class="status" id="status-person"></div>
+      </form>
+      <div id="list-person"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Struktur (Orte)</h2>
+      <form id="form-struktur">
+        <label>Name <input type="text" id="struktur-name" required placeholder="z.B. Bad"></label>
+        <label>Typ
+          <select id="struktur-typ">
+            <option value="Zimmer">Zimmer</option>
+            <option value="Haushalt">Haushalt</option>
+            <option value="Gebäude">Gebäude</option>
+          </select>
+        </label>
+        <button type="submit" class="primary">Hinzufügen</button>
+        <div class="status" id="status-struktur"></div>
+      </form>
+      <div id="list-struktur"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Prozesse</h2>
+      <form id="form-prozess">
+        <label>Name <input type="text" id="prozess-name" required placeholder="z.B. Wochenroutine"></label>
+        <label>Beschreibung <input type="text" id="prozess-beschreibung" placeholder="optional"></label>
+        <button type="submit" class="primary">Hinzufügen</button>
+        <div class="status" id="status-prozess"></div>
+      </form>
+      <div id="list-prozess"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Ressourcen</h2>
+      <form id="form-ressource">
+        <label>Name <input type="text" id="ressource-name" required placeholder="z.B. Werkzeugkiste"></label>
+        <label>Farbe <input type="text" id="ressource-farbe" placeholder="optional"></label>
+        <label>Kalender-Code <input type="text" id="ressource-code" placeholder="optional"></label>
+        <button type="submit" class="primary">Hinzufügen</button>
+        <div class="status" id="status-ressource"></div>
+      </form>
+      <div id="list-ressource"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Aufgaben</h2>
+    <form id="form-aufgabe">
+      <label>Name <input type="text" id="aufgabe-name" required placeholder="z.B. Bad putzen"></label>
+      <label>Beschreibung <input type="text" id="aufgabe-beschreibung" placeholder="optional"></label>
+      <label>Kategorie <input type="text" id="aufgabe-kategorie" placeholder="optional"></label>
+      <label>Ort (Struktur, optional)
+        <select id="aufgabe-struktur"><option value="">— kein Ort —</option></select>
+      </label>
+      <label>Prozess (optional)
+        <select id="aufgabe-prozess"><option value="">— kein Prozess —</option></select>
+      </label>
+      <label>Reihenfolge im Prozess <input type="number" id="aufgabe-reihenfolge" value="1" min="1"></label>
+      <button type="submit" class="primary">Aufgabe anlegen</button>
+      <div class="status" id="status-aufgabe"></div>
+    </form>
+    <div id="list-aufgabe"></div>
+  </section>
+
+  <section class="verknuepfungen">
+    <div class="panel">
+      <h2>Graph (live)</h2>
+      <div id="network"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Zuständigkeiten</h2>
+      <p class="empty" style="margin-top:-0.3rem">Wer erinnert sich wie viele Tage vorher an welche Aufgabe.</p>
+      <form id="form-zustaendigkeit">
+        <label>Person <select id="zust-person"></select></label>
+        <label>Aufgabe <select id="zust-aufgabe"></select></label>
+        <label>Vorlaufzeit (Tage) <input type="number" id="zust-vorlauf" value="1" min="0"></label>
+        <button type="submit" class="primary">Zuordnen</button>
+        <div class="status" id="status-zust"></div>
+      </form>
+      <div id="list-zust"></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      <div class="panel">
+        <h2>Aufgabe ↔ Ressource</h2>
+        <p class="empty" style="margin-top:-0.3rem">z.B. "Müll rausbringen" bezieht sich auf "Gelber Sack".</p>
+        <form id="form-aufres">
+          <label>Aufgabe <select id="aufres-aufgabe"></select></label>
+          <label>Ressource <select id="aufres-ressource"></select></label>
+          <button type="submit" class="primary">Verknüpfen</button>
+          <div class="status" id="status-aufres"></div>
+        </form>
+        <div id="list-aufres"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Einmaliger Termin für Aufgabe</h2>
+        <p class="empty" style="margin-top:-0.3rem">Ort und Dauer angeben, wenn jemand hinfahren muss.</p>
+        <form id="form-aufgabe-termin">
+          <label>Aufgabe <select id="auftermin-aufgabe"></select></label>
+          <label>Datum <input type="date" id="auftermin-datum" required></label>
+          <label>Uhrzeit <input type="time" id="auftermin-beginn" placeholder="leer = ganztägig"></label>
+          <label>Ort <input type="text" id="auftermin-ort" placeholder="leer = zuhause"></label>
+          <label>Dauer (Minuten) <input type="number" id="auftermin-dauer" min="0" step="15" placeholder="0 = unbekannt"></label>
+          <button type="submit" class="primary">Termin setzen</button>
+          <div class="status" id="status-auftermin"></div>
+        </form>
+        <div id="list-auftermin"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Aufgabe betrifft Person</h2>
+        <p class="empty" style="margin-top:-0.3rem">Um wen es geht — nicht, wer es erledigt. Bei "Lena zum Hautarzt bringen" ist Lena betroffen, Max zuständig.</p>
+        <form id="form-betrifft">
+          <label>Aufgabe <select id="betrifft-aufgabe"></select></label>
+          <label>Person <select id="betrifft-person"></select></label>
+          <button type="submit" class="primary">Verknüpfen</button>
+          <div class="status" id="status-betrifft"></div>
+        </form>
+        <div id="list-betrifft"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Stundenplan</h2>
+    <p class="empty" style="margin-top:-0.3rem">Wiederkehrende Wochenstruktur der Kinder — bewusst kein Termin, weil ohne Datum.</p>
+    <form id="form-schulstunde">
+      <label>Person <select id="sst-person"></select></label>
+      <label>Wochentag <select id="sst-wochentag"></select></label>
+      <label>Stunde <input type="number" id="sst-stunde" min="1" max="12" value="1"></label>
+      <label>Fach <input type="text" id="sst-fach" required></label>
+      <label>Raum <input type="text" id="sst-raum"></label>
+      <label>Lehrer <input type="text" id="sst-lehrer"></label>
+      <label>Woche <select id="sst-woche">
+        <option value="">jede Woche</option><option value="A">A-Woche</option><option value="B">B-Woche</option>
+      </select></label>
+      <label>Von <input type="time" id="sst-beginn"></label>
+      <label>Bis <input type="time" id="sst-ende"></label>
+      <button type="submit" class="primary">Stunde eintragen</button>
+      <button type="button" id="sst-plan-loeschen">Ganzen Plan löschen</button>
+      <div class="status" id="status-sst"></div>
+    </form>
+    <div id="list-sst"></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+  function escapeHtml(s) {
+    const div = document.createElement("div");
+    div.textContent = s == null ? "" : String(s);
+    return div.innerHTML;
+  }
+
+  function setStatus(id, msg, kind) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = "status" + (kind ? " " + kind : "");
+  }
+
+  async function postJson(url, data) {
+    const res = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+    });
+    return res;
+  }
+
+  // --- Einfache Bausteine: Personen, Struktur, Prozesse, Ressourcen ---
+
+  function simpleCrud({ endpoint, listId, formId, fields, renderRow, buildPayload }) {
+    async function load() {
+      const res = await fetch(endpoint);
+      const items = await res.json();
+      const listEl = document.getElementById(listId);
+      listEl.innerHTML = items.length
+        ? ""
+        : '<div class="empty">Noch keine Einträge.</div>';
+      items.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = renderRow(item) + `<button class="delete" data-id="${item.id}">✕</button>`;
+        row.querySelector(".delete").addEventListener("click", () => remove(item.id));
+        listEl.appendChild(row);
+      });
+      return items;
+    }
+
+    async function remove(id) {
+      if (!confirm("Wirklich löschen? Verknüpfungen werden mit entfernt.")) return;
+      await fetch(`${endpoint}/${id}`, { method: "DELETE" });
+      await refreshAll();
+    }
+
+    document.getElementById(formId).addEventListener("submit", async e => {
+      e.preventDefault();
+      const payload = buildPayload();
+      const statusId = "status-" + formId.replace("form-", "");
+      setStatus(statusId, "Speichere …");
+      const res = await postJson(endpoint, payload);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setStatus(statusId, err.error || "Fehler beim Speichern.", "error");
+        return;
+      }
+      fields.forEach(f => { document.getElementById(f).value = ""; });
+      setStatus(statusId, "Gespeichert.", "ok");
+      await refreshAll();
+    });
+
+    return { load };
+  }
+
+  const personen = simpleCrud({
+    endpoint: "api/personen", listId: "list-person", formId: "form-person",
+    fields: ["person-name"],
+    renderRow: p => `<div class="main"><span class="name">${escapeHtml(p.name)}</span></div><span class="tag">${escapeHtml(p.rolle)}</span>`,
+    buildPayload: () => ({
+      name: document.getElementById("person-name").value.trim(),
+      rolle: document.getElementById("person-rolle").value
+    })
+  });
+
+  const struktur = simpleCrud({
+    endpoint: "api/struktur", listId: "list-struktur", formId: "form-struktur",
+    fields: ["struktur-name"],
+    renderRow: s => `<div class="main"><span class="name">${escapeHtml(s.name)}</span></div><span class="tag">${escapeHtml(s.typ)}</span>`,
+    buildPayload: () => ({
+      name: document.getElementById("struktur-name").value.trim(),
+      typ: document.getElementById("struktur-typ").value
+    })
+  });
+
+  const prozesse = simpleCrud({
+    endpoint: "api/prozesse", listId: "list-prozess", formId: "form-prozess",
+    fields: ["prozess-name", "prozess-beschreibung"],
+    renderRow: p => `<div class="main"><span class="name">${escapeHtml(p.name)}</span>${p.beschreibung ? `<span class="sub">${escapeHtml(p.beschreibung)}</span>` : ""}</div>`,
+    buildPayload: () => ({
+      name: document.getElementById("prozess-name").value.trim(),
+      beschreibung: document.getElementById("prozess-beschreibung").value.trim()
+    })
+  });
+
+  const ressourcen = simpleCrud({
+    endpoint: "api/ressourcen", listId: "list-ressource", formId: "form-ressource",
+    fields: ["ressource-name", "ressource-farbe", "ressource-code"],
+    renderRow: r => `<div class="main"><span class="name">${escapeHtml(r.name)}</span></div><span class="tag">${escapeHtml(r.farbe || "–")}</span>`,
+    buildPayload: () => ({
+      name: document.getElementById("ressource-name").value.trim(),
+      farbe: document.getElementById("ressource-farbe").value.trim(),
+      kalender_code: document.getElementById("ressource-code").value.trim()
+    })
+  });
+
+  // --- Aufgaben (mit Ort/Prozess-Auswahl) ---
+
+  async function loadAufgaben() {
+    const res = await fetch("api/aufgaben");
+    const items = await res.json();
+    const listEl = document.getElementById("list-aufgabe");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Aufgaben.</div>';
+    items.forEach(a => {
+      const sub = [a.ort ? `Ort: ${a.ort}` : null, a.prozess ? `Prozess: ${a.prozess} (#${a.reihenfolge})` : null]
+        .filter(Boolean).join(" · ");
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(a.name)}</span>${sub ? `<span class="sub">${escapeHtml(sub)}</span>` : ""}</div><button class="delete" data-id="${a.id}">✕</button>`;
+      row.querySelector(".delete").addEventListener("click", async () => {
+        if (!confirm("Aufgabe wirklich löschen? Verknüpfungen werden mit entfernt.")) return;
+        await fetch(`api/aufgaben/${a.id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      listEl.appendChild(row);
+    });
+    return items;
+  }
+
+  document.getElementById("form-aufgabe").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById("aufgabe-name").value.trim(),
+      beschreibung: document.getElementById("aufgabe-beschreibung").value.trim(),
+      kategorie: document.getElementById("aufgabe-kategorie").value.trim(),
+      struktur_id: document.getElementById("aufgabe-struktur").value,
+      prozess_id: document.getElementById("aufgabe-prozess").value,
+      reihenfolge: document.getElementById("aufgabe-reihenfolge").value
+    };
+    setStatus("status-aufgabe", "Speichere …");
+    const res = await postJson("api/aufgaben", payload);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setStatus("status-aufgabe", err.error || "Fehler beim Speichern.", "error");
+      return;
+    }
+    ["aufgabe-name", "aufgabe-beschreibung", "aufgabe-kategorie"].forEach(id => document.getElementById(id).value = "");
+    setStatus("status-aufgabe", "Aufgabe angelegt.", "ok");
+    await refreshAll();
+  });
+
+  // --- Zuständigkeiten (Person <-> Aufgabe) ---
+
+  async function loadZustaendigkeiten() {
+    const res = await fetch("api/zustaendigkeiten");
+    const items = await res.json();
+    const listEl = document.getElementById("list-zust");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Zuordnungen.</div>';
+    items.forEach(z => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(z.person)} → ${escapeHtml(z.aufgabe)}</span><span class="sub">Vorlauf: ${z.vorlaufzeit_tage} Tag(e)</span></div><button class="delete">✕</button>`;
+      row.querySelector(".delete").addEventListener("click", async () => {
+        await fetch(`api/zustaendigkeiten/${z.person_id}/${z.aufgabe_id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("form-zustaendigkeit").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      person_id: document.getElementById("zust-person").value,
+      aufgabe_id: document.getElementById("zust-aufgabe").value,
+      vorlaufzeit_tage: document.getElementById("zust-vorlauf").value
+    };
+    if (!payload.person_id || !payload.aufgabe_id) {
+      setStatus("status-zust", "Bitte Person und Aufgabe wählen.", "error");
+      return;
+    }
+    setStatus("status-zust", "Speichere …");
+    await postJson("api/zustaendigkeiten", payload);
+    setStatus("status-zust", "Zugeordnet.", "ok");
+    await refreshAll();
+  });
+
+  // --- Aufgabe <-> Ressource ---
+
+  async function loadAufgabeRessource() {
+    const res = await fetch("api/aufgabe-ressource");
+    const items = await res.json();
+    const listEl = document.getElementById("list-aufres");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Verknüpfungen.</div>';
+    items.forEach(z => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(z.aufgabe)} → ${escapeHtml(z.ressource)}</span></div><button class="delete">✕</button>`;
+      row.querySelector(".delete").addEventListener("click", async () => {
+        await fetch(`api/aufgabe-ressource/${z.aufgabe_id}/${z.ressource_id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("form-aufres").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      aufgabe_id: document.getElementById("aufres-aufgabe").value,
+      ressource_id: document.getElementById("aufres-ressource").value
+    };
+    if (!payload.aufgabe_id || !payload.ressource_id) {
+      setStatus("status-aufres", "Bitte Aufgabe und Ressource wählen.", "error");
+      return;
+    }
+    setStatus("status-aufres", "Speichere …");
+    await postJson("api/aufgabe-ressource", payload);
+    setStatus("status-aufres", "Verknüpft.", "ok");
+    await refreshAll();
+  });
+
+  // --- Einmalige Termine für Aufgaben (AUFGABE_HAT_TERMIN) ---
+
+  async function loadAufgabeTermine() {
+    const res = await fetch("api/aufgabe-termine");
+    const items = await res.json();
+    const listEl = document.getElementById("list-auftermin");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Termine.</div>';
+    items.forEach(z => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const teile = [z.datum, z.beginn || "ganztägig"];
+      if (z.ort) teile.push(z.ort);
+      if (z.dauer_minuten) teile.push(`${z.dauer_minuten} min`);
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(z.aufgabe)}</span><span class="sub">${escapeHtml(teile.join(" · "))}</span></div><button class="delete">✕</button>`;
+      row.querySelector(".delete").addEventListener("click", async () => {
+        await fetch(`api/aufgabe-termine/${z.termin_id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("form-aufgabe-termin").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      aufgabe_id: document.getElementById("auftermin-aufgabe").value,
+      datum: document.getElementById("auftermin-datum").value,
+      beginn: document.getElementById("auftermin-beginn").value,
+      ort: document.getElementById("auftermin-ort").value.trim(),
+      dauer_minuten: Number(document.getElementById("auftermin-dauer").value) || 0
+    };
+    if (!payload.aufgabe_id || !payload.datum) {
+      setStatus("status-auftermin", "Bitte Aufgabe und Datum wählen.", "error");
+      return;
+    }
+    setStatus("status-auftermin", "Speichere …");
+    await postJson("api/aufgabe-termine", payload);
+    ["auftermin-datum", "auftermin-beginn", "auftermin-ort", "auftermin-dauer"]
+      .forEach(id => { document.getElementById(id).value = ""; });
+    setStatus("status-auftermin", "Termin gesetzt.", "ok");
+    await refreshAll();
+  });
+
+  // --- Aufgabe betrifft Person (BETRIFFT) ---
+
+  async function loadBetrifft() {
+    const items = await (await fetch("api/betrifft")).json();
+    const listEl = document.getElementById("list-betrifft");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Zuordnung.</div>';
+    items.forEach(z => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(z.aufgabe)}</span><span class="sub">betrifft ${escapeHtml(z.person)}</span></div><button class="delete">✕</button>`;
+      row.querySelector(".delete").addEventListener("click", async () => {
+        await fetch(`api/betrifft/${z.aufgabe_id}/${z.person_id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("form-betrifft").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      aufgabe_id: document.getElementById("betrifft-aufgabe").value,
+      person_id: document.getElementById("betrifft-person").value
+    };
+    if (!payload.aufgabe_id || !payload.person_id) {
+      setStatus("status-betrifft", "Bitte Aufgabe und Person wählen.", "error");
+      return;
+    }
+    setStatus("status-betrifft", "Speichere …");
+    await postJson("api/betrifft", payload);
+    setStatus("status-betrifft", "Verknüpft.", "ok");
+    await refreshAll();
+  });
+
+  // --- Stundenplan (HAT_STUNDE) ---
+
+  async function loadSchulstunden() {
+    const items = await (await fetch("api/schulstunden")).json();
+    const listEl = document.getElementById("list-sst");
+    listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Schulstunden.</div>';
+    // Nach Person und Wochentag gruppieren — eine flache Liste wäre bei 30+
+    // Stunden pro Kind nicht mehr lesbar. Pro Person steht die Quelle einmal oben.
+    const gruppen = new Map();
+    const quellen = new Map();
+    items.forEach(s => {
+      const key = `${s.person} · ${s.wochentag}`;
+      if (!gruppen.has(key)) gruppen.set(key, []);
+      gruppen.get(key).push(s);
+      if (!quellen.has(s.person)) quellen.set(s.person, new Set());
+      if (s.quelle) quellen.get(s.person).add(s.quelle);
+    });
+    let letztePerson = null;
+    gruppen.forEach((stunden, key) => {
+      const person = stunden[0].person;
+      if (person !== letztePerson) {
+        letztePerson = person;
+        const q = [...quellen.get(person)];
+        const personKopf = document.createElement("div");
+        personKopf.className = "name";
+        personKopf.style.marginTop = "0.9rem";
+        personKopf.textContent = q.length ? `${person} — Quelle: ${q.join(", ")}` : person;
+        listEl.appendChild(personKopf);
+      }
+      const kopf = document.createElement("div");
+      kopf.className = "empty";
+      kopf.style.marginTop = "0.6rem";
+      kopf.textContent = key;
+      listEl.appendChild(kopf);
+      stunden.forEach(s => {
+        const zeit = s.beginn && s.ende ? `${s.beginn}–${s.ende}` : "";
+        const sub = [s.stunde > 0 ? `${s.stunde}. Stunde` : "ohne Stundennummer",
+                     s.woche ? `${s.woche}-Woche` : "", s.raum, s.lehrer, zeit]
+          .filter(Boolean).join(" · ");
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `<div class="main"><span class="name">${escapeHtml(s.fach)}</span><span class="sub">${escapeHtml(sub)}</span></div><button class="delete">✕</button>`;
+        row.querySelector(".delete").addEventListener("click", async () => {
+          await fetch(`api/schulstunden/${s.id}`, { method: "DELETE" });
+          await refreshAll();
+        });
+        listEl.appendChild(row);
+      });
+    });
+  }
+
+  document.getElementById("form-schulstunde").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      person_id: document.getElementById("sst-person").value,
+      wochentag: document.getElementById("sst-wochentag").value,
+      stunde: Number(document.getElementById("sst-stunde").value) || 0,
+      fach: document.getElementById("sst-fach").value.trim(),
+      raum: document.getElementById("sst-raum").value.trim(),
+      lehrer: document.getElementById("sst-lehrer").value.trim(),
+      woche: document.getElementById("sst-woche").value,
+      beginn: document.getElementById("sst-beginn").value,
+      ende: document.getElementById("sst-ende").value
+    };
+    if (!payload.person_id || !payload.fach) {
+      setStatus("status-sst", "Bitte Person und Fach angeben.", "error");
+      return;
+    }
+    setStatus("status-sst", "Speichere …");
+    const res = await postJson("api/schulstunden", payload);
+    if (!res.ok) {
+      // Der Server prüft strenger als das Formular (z.B. Ende vor Beginn) —
+      // seine Meldung anzeigen statt fälschlich Erfolg zu melden.
+      const { error } = await res.json();
+      setStatus("status-sst", error || "Speichern fehlgeschlagen.", "error");
+      return;
+    }
+    document.getElementById("sst-fach").value = "";
+    // Stundennummer hochzählen: der Normalfall ist, dass gleich die nächste
+    // Stunde desselben Tages eingetragen wird.
+    const nr = document.getElementById("sst-stunde");
+    nr.value = Math.min(12, Number(nr.value || 0) + 1);
+    setStatus("status-sst", "Stunde eingetragen.", "ok");
+    await refreshAll();
+  });
+
+  document.getElementById("sst-plan-loeschen").addEventListener("click", async () => {
+    const select = document.getElementById("sst-person");
+    if (!select.value) return;
+    const name = select.options[select.selectedIndex].textContent;
+    if (!confirm(`Wirklich den kompletten Stundenplan von ${name} löschen?`)) return;
+    const res = await fetch(`api/schulstunden/person/${select.value}`, { method: "DELETE" });
+    const daten = await res.json();
+    setStatus("status-sst", `${daten.geloescht} Stunden gelöscht.`, "ok");
+    await refreshAll();
+  });
+
+  // --- Dropdowns synchron halten ---
+
+  function fillSelect(selectEl, items, valueKey, labelFn, placeholder) {
+    const current = selectEl.value;
+    selectEl.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : "";
+    items.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item[valueKey];
+      opt.textContent = labelFn(item);
+      selectEl.appendChild(opt);
+    });
+    if ([...selectEl.options].some(o => o.value === current)) selectEl.value = current;
+  }
+
+  // --- Graph (vis-network) ---
+
+  let network = null;
+
+  function colorFor(node) {
+    if (node.type === "Ressource") {
+      const farbe = (node.props && node.props.farbe) || "";
+      if (farbe === "schwarz") return "#2b2b28";
+      if (farbe === "braun") return "#7a5230";
+      if (farbe === "gelb") return "#c99a12";
+      if (farbe === "grün" || farbe === "gruen") return "#3f7a45";
+      return "#3e5c76";
+    }
+    const map = {
+      Person: "#b5495b", Struktur: "#3e5c76", Aufgabe: "#c08a2e",
+      Prozess: "#6b5b95", Termin: "#8a8578", Dokument: "#5f7f6e"
+    };
+    return map[node.type] || "#3e5c76";
+  }
+
+  async function loadGraph() {
+    const res = await fetch("api/graph");
+    const graph = await res.json();
+
+    // Termine und Schulstunden blenden den Graphen zu: davon gibt es pro Ressource
+    // bzw. pro Kind sehr viele. Im Live-Graph komplett ausblenden.
+    const AUSGEBLENDET = new Set(["Termin", "Schulstunde"]);
+    const visibleNodes = graph.nodes.filter(n => !AUSGEBLENDET.has(n.type));
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+    const visibleEdges = graph.edges.filter(e => visibleIds.has(e.from) && visibleIds.has(e.to));
+
+    const nodes = new vis.DataSet(visibleNodes.map(n => ({
+      id: n.id,
+      label: n.label,
+      title: `${n.type}: ${n.label}`,
+      shape: "dot",
+      size: 13,
+      color: { background: colorFor(n), border: colorFor(n) },
+      font: { color: "#22201b", size: 11 }
+    })));
+    const edges = new vis.DataSet(visibleEdges.map(e => ({
+      from: e.from, to: e.to, arrows: "to",
+      color: { color: "#dad3c4" }, smooth: { type: "continuous" }
+    })));
+
+    if (network) network.destroy();
+    network = new vis.Network(document.getElementById("network"), { nodes, edges }, {
+      physics: { stabilization: true, barnesHut: { gravitationalConstant: -4000, springLength: 120 } },
+      interaction: { hover: true }
+    });
+  }
+
+  async function refreshAll() {
+    const [ps, ss, prs, rs, as] = await Promise.all([
+      personen.load(), struktur.load(), prozesse.load(), ressourcen.load(), loadAufgaben()
+    ]);
+
+    fillSelect(document.getElementById("aufgabe-struktur"), ss, "id", s => s.name, "— kein Ort —");
+    fillSelect(document.getElementById("aufgabe-prozess"), prs, "id", p => p.name, "— kein Prozess —");
+    fillSelect(document.getElementById("zust-person"), ps, "id", p => p.name);
+    fillSelect(document.getElementById("zust-aufgabe"), as, "id", a => a.name);
+    fillSelect(document.getElementById("aufres-aufgabe"), as, "id", a => a.name);
+    fillSelect(document.getElementById("aufres-ressource"), rs, "id", r => r.name);
+    fillSelect(document.getElementById("auftermin-aufgabe"), as, "id", a => a.name);
+    fillSelect(document.getElementById("betrifft-aufgabe"), as, "id", a => a.name);
+    fillSelect(document.getElementById("betrifft-person"), ps, "id", p => p.name);
+    fillSelect(document.getElementById("sst-person"), ps, "id", p => p.name);
+
+    await Promise.all([
+      loadZustaendigkeiten(), loadAufgabeRessource(), loadAufgabeTermine(),
+      loadBetrifft(), loadSchulstunden(), loadGraph()
+    ]);
+  }
+
+  // Wochentage kommen aus der API, damit Oberfläche und Server nicht auseinanderlaufen.
+  fetch("api/wochentage")
+    .then(r => r.json())
+    .then(tage => fillSelect(
+      document.getElementById("sst-wochentag"),
+      tage.map(t => ({ id: t, name: t })), "id", t => t.name));
+
+  refreshAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,1079 @@
+<title>Haushalts-Ontologie</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f3ec;
+    --surface: #ffffff;
+    --surface-2: #efeade;
+    --ink: #22201b;
+    --ink-soft: #5b564b;
+    --border: #dad3c4;
+    --accent: #1f5c52;
+    --accent-ink: #ffffff;
+    --accent-soft: #dceae6;
+
+    --node-person: #b5495b;
+    --node-struktur: #3e5c76;
+    --node-aufgabe: #c08a2e;
+    --node-prozess: #6b5b95;
+    --node-termin: #8a8578;
+    --node-restmuell: #2b2b28;
+    --node-biotonne: #7a5230;
+    --node-gelbersack: #c99a12;
+    --node-papier: #3f7a45;
+
+    --font-display: "Fraunces", ui-serif, Georgia, serif;
+    --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1b1917;
+      --surface: #242220;
+      --surface-2: #2c2a26;
+      --ink: #ede8dd;
+      --ink-soft: #b4ac9c;
+      --border: #3a362f;
+      --accent: #5fbdae;
+      --accent-ink: #0f2320;
+      --accent-soft: #24413c;
+
+      --node-person: #d97e8c;
+      --node-struktur: #7fa0c2;
+      --node-aufgabe: #e0ac52;
+      --node-prozess: #a394cf;
+      --node-termin: #a39c8c;
+      --node-restmuell: #8f8b82;
+      --node-biotonne: #b4835a;
+      --node-gelbersack: #e0b93a;
+      --node-papier: #6ea875;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1b1917;
+    --surface: #242220;
+    --surface-2: #2c2a26;
+    --ink: #ede8dd;
+    --ink-soft: #b4ac9c;
+    --border: #3a362f;
+    --accent: #5fbdae;
+    --accent-ink: #0f2320;
+    --accent-soft: #24413c;
+
+    --node-person: #d97e8c;
+    --node-struktur: #7fa0c2;
+    --node-aufgabe: #e0ac52;
+    --node-prozess: #a394cf;
+    --node-termin: #a39c8c;
+    --node-restmuell: #8f8b82;
+    --node-biotonne: #b4835a;
+    --node-gelbersack: #e0b93a;
+    --node-papier: #6ea875;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  header p {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    margin: 0 0 0.9rem;
+    text-wrap: balance;
+  }
+
+  .concepts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .concept {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+  }
+
+  .concept .dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    margin-right: 0.45rem;
+  }
+
+  .concept strong {
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+  }
+
+  .concept span.desc {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    font-size: 0.92rem;
+  }
+
+  .callout strong { color: var(--accent); }
+
+  .toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--surface);
+    gap: 2px;
+  }
+
+  .toggle button {
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.85rem;
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .toggle button.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .graph-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .graph-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.25rem;
+  }
+
+  @media (max-width: 860px) {
+    .graph-layout { grid-template-columns: 1fr; }
+  }
+
+  #network {
+    height: 520px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+  }
+
+  .panel h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.86rem;
+    padding: 0.2rem 0;
+  }
+
+  .legend-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #detail-empty { color: var(--ink-soft); font-size: 0.88rem; }
+
+  #detail-body { display: none; }
+
+  #detail-body .type-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    margin-bottom: 0.5rem;
+  }
+
+  #detail-body .name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0 0 0.6rem;
+  }
+
+  #detail-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+  }
+
+  #detail-body td {
+    padding: 0.3rem 0;
+    border-top: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  #detail-body td:first-child {
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    width: 40%;
+    padding-right: 0.5rem;
+  }
+
+  .digest-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .digest-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .digest-card .person {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+
+  .digest-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.86rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.5rem;
+  }
+
+  .digest-item .what { color: var(--ink); }
+  .digest-item .ctx { color: var(--ink-soft); font-size: 0.8rem; }
+
+  .pill {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  .pill.today {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .digest-empty {
+    color: var(--ink-soft);
+    font-size: 0.88rem;
+    grid-column: 1 / -1;
+  }
+
+  footer {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
+
+  footer code {
+    font-family: var(--font-mono);
+    background: var(--surface-2);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Ontologie · Graphdatenbank · Kùzu</span>
+    <h1>Struktur, Prozesse, Personen und Aufgaben im Haushalt</h1>
+    <p>Interaktive Ansicht des Ontologie-Modells: erst das abstrakte Schema (Knoten- und Kantentypen), dann die Beispieldaten eines Musterhaushalts — inklusive echtem Müllkalender als Anwendungsfall für "wer ist wann für welche Tonne zuständig".</p>
+  </header>
+
+  <section>
+    <h2>Die sechs Grundbegriffe</h2>
+    <div class="concepts">
+      <div class="concept"><span class="dot" style="background:var(--node-person)"></span><strong>Person</strong><span class="desc">Familienmitglied, z.B. Ben.</span></div>
+      <div class="concept"><span class="dot" style="background:var(--node-struktur)"></span><strong>Struktur</strong><span class="desc">Ort: Haushalt, Küche, Garten.</span></div>
+      <div class="concept"><span class="dot" style="background:var(--node-aufgabe)"></span><strong>Aufgabe</strong><span class="desc">Tätigkeit, z.B. Müll rausbringen.</span></div>
+      <div class="concept"><span class="dot" style="background:var(--node-prozess)"></span><strong>Prozess</strong><span class="desc">Bündelt Aufgaben zu einer Routine.</span></div>
+      <div class="concept"><span class="dot" style="background:var(--node-termin)"></span><strong>Termin</strong><span class="desc">Konkretes Datum, keine Regel.</span></div>
+      <div class="concept"><span class="dot" style="background:var(--node-restmuell)"></span><strong>Ressource</strong><span class="desc">Zusatzobjekt, z.B. eine Tonnenart.</span></div>
+    </div>
+  </section>
+
+  <section class="callout">
+    <strong>Aus dem echten Müllkalender:</strong> der Buchstabe allein reicht nicht — "C" steht je nach Farbe für drei verschiedene Tonnen. Der Code ist also <em>Farbe + Buchstabe</em>: schwarzes C = Restmüll, braunes B = Biotonne, gelbes C = Gelber Sack, grünes C = Papiertonne. Termine werden deshalb als konkrete Datumsknoten gespeichert, nicht als Wiederholungsregel.
+  </section>
+
+  <section>
+    <div class="graph-section-head">
+      <h2 style="margin:0">Graph erkunden</h2>
+      <div class="toggle">
+        <button id="btn-schema" class="active">Schema</button>
+        <button id="btn-instanzen">Beispieldaten</button>
+      </div>
+    </div>
+    <div class="graph-layout">
+      <div id="network"></div>
+      <div class="sidebar">
+        <div class="panel">
+          <h3>Details</h3>
+          <div id="detail-empty">Klicke auf einen Knoten für Details.</div>
+          <div id="detail-body">
+            <div class="type-badge" id="detail-type"></div>
+            <p class="name" id="detail-name"></p>
+            <table id="detail-props"></table>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Legende</h3>
+          <div id="legend"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Wer wird woran erinnert? (Digest-Export)</h2>
+    <p style="color:var(--ink-soft); margin-top:-0.5rem; font-size:0.9rem;">Momentaufnahme von <code style="font-family:var(--font-mono)">digest.py</code> — pro Person alle Aufgaben, deren Termin innerhalb ihrer individuellen Vorlaufzeit liegt. Genau dieses JSON ist die Schnittstelle für eine KI oder Home Assistant.</p>
+    <div class="digest-grid" id="digest-grid"></div>
+  </section>
+
+  <footer>
+    Beispielhaushalt (Anna, Ben, Cara) mit realer Tonnenarten-Legende, aber <strong>Platzhalter-Terminen</strong> — vor produktivem Einsatz gegen den echten Müllkalender abgleichen. Quelle der Graphdaten: <code>export_graph.py</code> · Digest: <code>digest.py</code> · Datenbank: Kùzu (<code>kuzu_db/</code>).
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+  const instanceGraph = {
+  "nodes": [
+    {
+      "id": "p1",
+      "label": "Anna",
+      "type": "Person",
+      "props": {
+        "id": "p1",
+        "name": "Anna",
+        "rolle": "Elternteil"
+      }
+    },
+    {
+      "id": "p2",
+      "label": "Ben",
+      "type": "Person",
+      "props": {
+        "id": "p2",
+        "name": "Ben",
+        "rolle": "Elternteil"
+      }
+    },
+    {
+      "id": "p3",
+      "label": "Cara",
+      "type": "Person",
+      "props": {
+        "id": "p3",
+        "name": "Cara",
+        "rolle": "Kind"
+      }
+    },
+    {
+      "id": "s1",
+      "label": "Musterfamilie Zuhause",
+      "type": "Struktur",
+      "props": {
+        "id": "s1",
+        "name": "Musterfamilie Zuhause",
+        "typ": "Haushalt"
+      }
+    },
+    {
+      "id": "s2",
+      "label": "Küche",
+      "type": "Struktur",
+      "props": {
+        "id": "s2",
+        "name": "Küche",
+        "typ": "Zimmer"
+      }
+    },
+    {
+      "id": "s3",
+      "label": "Garten",
+      "type": "Struktur",
+      "props": {
+        "id": "s3",
+        "name": "Garten",
+        "typ": "Zimmer"
+      }
+    },
+    {
+      "id": "a1",
+      "label": "Müll rausbringen",
+      "type": "Aufgabe",
+      "props": {
+        "id": "a1",
+        "name": "Müll rausbringen",
+        "beschreibung": "Tonnen an den Straßenrand stellen",
+        "kategorie": "Haushalt"
+      }
+    },
+    {
+      "id": "a2",
+      "label": "Küche putzen",
+      "type": "Aufgabe",
+      "props": {
+        "id": "a2",
+        "name": "Küche putzen",
+        "beschreibung": "Arbeitsflächen und Boden wischen",
+        "kategorie": "Haushalt"
+      }
+    },
+    {
+      "id": "a3",
+      "label": "Rasen mähen",
+      "type": "Aufgabe",
+      "props": {
+        "id": "a3",
+        "name": "Rasen mähen",
+        "beschreibung": "Rasen im Garten mähen",
+        "kategorie": "Garten"
+      }
+    },
+    {
+      "id": "pr1",
+      "label": "Wochenroutine",
+      "type": "Prozess",
+      "props": {
+        "id": "pr1",
+        "name": "Wochenroutine",
+        "beschreibung": "Wiederkehrende wöchentliche Hausarbeiten"
+      }
+    },
+    {
+      "id": "termin-biotonne-braun-2026-09-08",
+      "label": "2026-09-08",
+      "type": "Termin",
+      "props": {
+        "id": "termin-biotonne-braun-2026-09-08",
+        "datum": "2026-09-08"
+      }
+    },
+    {
+      "id": "termin-gelber-sack-gelb-2026-09-10",
+      "label": "2026-09-10",
+      "type": "Termin",
+      "props": {
+        "id": "termin-gelber-sack-gelb-2026-09-10",
+        "datum": "2026-09-10"
+      }
+    },
+    {
+      "id": "termin-restmuell-schwarz-2026-09-15",
+      "label": "2026-09-15",
+      "type": "Termin",
+      "props": {
+        "id": "termin-restmuell-schwarz-2026-09-15",
+        "datum": "2026-09-15"
+      }
+    },
+    {
+      "id": "termin-papier-gruen-2026-09-17",
+      "label": "2026-09-17",
+      "type": "Termin",
+      "props": {
+        "id": "termin-papier-gruen-2026-09-17",
+        "datum": "2026-09-17"
+      }
+    },
+    {
+      "id": "termin-biotonne-braun-2026-09-22",
+      "label": "2026-09-22",
+      "type": "Termin",
+      "props": {
+        "id": "termin-biotonne-braun-2026-09-22",
+        "datum": "2026-09-22"
+      }
+    },
+    {
+      "id": "termin-gelber-sack-gelb-2026-09-24",
+      "label": "2026-09-24",
+      "type": "Termin",
+      "props": {
+        "id": "termin-gelber-sack-gelb-2026-09-24",
+        "datum": "2026-09-24"
+      }
+    },
+    {
+      "id": "termin-restmuell-schwarz-2026-09-29",
+      "label": "2026-09-29",
+      "type": "Termin",
+      "props": {
+        "id": "termin-restmuell-schwarz-2026-09-29",
+        "datum": "2026-09-29"
+      }
+    },
+    {
+      "id": "termin-papier-gruen-2026-10-01",
+      "label": "2026-10-01",
+      "type": "Termin",
+      "props": {
+        "id": "termin-papier-gruen-2026-10-01",
+        "datum": "2026-10-01"
+      }
+    },
+    {
+      "id": "termin-biotonne-braun-2026-10-06",
+      "label": "2026-10-06",
+      "type": "Termin",
+      "props": {
+        "id": "termin-biotonne-braun-2026-10-06",
+        "datum": "2026-10-06"
+      }
+    },
+    {
+      "id": "termin-restmuell-schwarz-2026-10-13",
+      "label": "2026-10-13",
+      "type": "Termin",
+      "props": {
+        "id": "termin-restmuell-schwarz-2026-10-13",
+        "datum": "2026-10-13"
+      }
+    },
+    {
+      "id": "termin-papier-gruen-2026-10-15",
+      "label": "2026-10-15",
+      "type": "Termin",
+      "props": {
+        "id": "termin-papier-gruen-2026-10-15",
+        "datum": "2026-10-15"
+      }
+    },
+    {
+      "id": "termin-biotonne-braun-2026-10-20",
+      "label": "2026-10-20",
+      "type": "Termin",
+      "props": {
+        "id": "termin-biotonne-braun-2026-10-20",
+        "datum": "2026-10-20"
+      }
+    },
+    {
+      "id": "restmuell-schwarz",
+      "label": "Restmüll",
+      "type": "Ressource",
+      "props": {
+        "id": "restmuell-schwarz",
+        "name": "Restmüll",
+        "farbe": "schwarz",
+        "kalender_code": "C"
+      }
+    },
+    {
+      "id": "biotonne-braun",
+      "label": "Biotonne",
+      "type": "Ressource",
+      "props": {
+        "id": "biotonne-braun",
+        "name": "Biotonne",
+        "farbe": "braun",
+        "kalender_code": "B"
+      }
+    },
+    {
+      "id": "gelber-sack-gelb",
+      "label": "Gelber Sack",
+      "type": "Ressource",
+      "props": {
+        "id": "gelber-sack-gelb",
+        "name": "Gelber Sack",
+        "farbe": "gelb",
+        "kalender_code": "C"
+      }
+    },
+    {
+      "id": "papier-gruen",
+      "label": "Papiertonne",
+      "type": "Ressource",
+      "props": {
+        "id": "papier-gruen",
+        "name": "Papiertonne",
+        "farbe": "grün",
+        "kalender_code": "C"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "p1",
+      "to": "s1",
+      "type": "GEHOERT_ZU",
+      "extra": null
+    },
+    {
+      "from": "p2",
+      "to": "s1",
+      "type": "GEHOERT_ZU",
+      "extra": null
+    },
+    {
+      "from": "p3",
+      "to": "s1",
+      "type": "GEHOERT_ZU",
+      "extra": null
+    },
+    {
+      "from": "p2",
+      "to": "a1",
+      "type": "VERANTWORTLICH_FUER",
+      "extra": 1
+    },
+    {
+      "from": "p1",
+      "to": "a2",
+      "type": "VERANTWORTLICH_FUER",
+      "extra": 0
+    },
+    {
+      "from": "p3",
+      "to": "a3",
+      "type": "VERANTWORTLICH_FUER",
+      "extra": 2
+    },
+    {
+      "from": "a2",
+      "to": "s2",
+      "type": "AUFGABE_AN_ORT",
+      "extra": null
+    },
+    {
+      "from": "a3",
+      "to": "s3",
+      "type": "AUFGABE_AN_ORT",
+      "extra": null
+    },
+    {
+      "from": "a2",
+      "to": "pr1",
+      "type": "TEIL_VON",
+      "extra": 1
+    },
+    {
+      "from": "a3",
+      "to": "pr1",
+      "type": "TEIL_VON",
+      "extra": 2
+    },
+    {
+      "from": "a1",
+      "to": "restmuell-schwarz",
+      "type": "BEZIEHT_SICH_AUF",
+      "extra": null
+    },
+    {
+      "from": "a1",
+      "to": "biotonne-braun",
+      "type": "BEZIEHT_SICH_AUF",
+      "extra": null
+    },
+    {
+      "from": "a1",
+      "to": "gelber-sack-gelb",
+      "type": "BEZIEHT_SICH_AUF",
+      "extra": null
+    },
+    {
+      "from": "a1",
+      "to": "papier-gruen",
+      "type": "BEZIEHT_SICH_AUF",
+      "extra": null
+    },
+    {
+      "from": "biotonne-braun",
+      "to": "termin-biotonne-braun-2026-09-08",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "gelber-sack-gelb",
+      "to": "termin-gelber-sack-gelb-2026-09-10",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "restmuell-schwarz",
+      "to": "termin-restmuell-schwarz-2026-09-15",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "papier-gruen",
+      "to": "termin-papier-gruen-2026-09-17",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "biotonne-braun",
+      "to": "termin-biotonne-braun-2026-09-22",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "gelber-sack-gelb",
+      "to": "termin-gelber-sack-gelb-2026-09-24",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "restmuell-schwarz",
+      "to": "termin-restmuell-schwarz-2026-09-29",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "papier-gruen",
+      "to": "termin-papier-gruen-2026-10-01",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "biotonne-braun",
+      "to": "termin-biotonne-braun-2026-10-06",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "restmuell-schwarz",
+      "to": "termin-restmuell-schwarz-2026-10-13",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "papier-gruen",
+      "to": "termin-papier-gruen-2026-10-15",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    },
+    {
+      "from": "biotonne-braun",
+      "to": "termin-biotonne-braun-2026-10-20",
+      "type": "RESSOURCE_HAT_TERMIN",
+      "extra": null
+    }
+  ]
+};
+  const digest = {
+  "generiert_am": "2026-09-10",
+  "personen": [
+    {
+      "person": "Ben",
+      "anstehend": [
+        {
+          "aufgabe": "Müll rausbringen",
+          "kontext": "Gelber Sack",
+          "datum": "2026-09-10",
+          "tage_bis": 0
+        }
+      ]
+    }
+  ]
+};
+
+  const schemaGraph = {
+    nodes: [
+      { id: "Person", label: "Person", type: "Person" },
+      { id: "Struktur", label: "Struktur", type: "Struktur" },
+      { id: "Aufgabe", label: "Aufgabe", type: "Aufgabe" },
+      { id: "Prozess", label: "Prozess", type: "Prozess" },
+      { id: "Termin", label: "Termin", type: "Termin" },
+      { id: "Ressource", label: "Ressource", type: "Ressource" }
+    ],
+    edges: [
+      { from: "Person", to: "Struktur", type: "GEHOERT_ZU" },
+      { from: "Person", to: "Aufgabe", type: "VERANTWORTLICH_FUER" },
+      { from: "Aufgabe", to: "Struktur", type: "AUFGABE_AN_ORT" },
+      { from: "Aufgabe", to: "Prozess", type: "TEIL_VON" },
+      { from: "Aufgabe", to: "Ressource", type: "BEZIEHT_SICH_AUF" },
+      { from: "Ressource", to: "Termin", type: "RESSOURCE_HAT_TERMIN" },
+      { from: "Aufgabe", to: "Termin", type: "AUFGABE_HAT_TERMIN" }
+    ]
+  };
+
+  function colorFor(node) {
+    const cs = getComputedStyle(document.documentElement);
+    if (node.type === "Ressource") {
+      const code = (node.props && node.props.kalender_code) || "";
+      const farbe = (node.props && node.props.farbe) || "";
+      if (farbe === "schwarz") return cs.getPropertyValue("--node-restmuell").trim();
+      if (farbe === "braun") return cs.getPropertyValue("--node-biotonne").trim();
+      if (farbe === "gelb") return cs.getPropertyValue("--node-gelbersack").trim();
+      if (farbe === "grün" || farbe === "gruen") return cs.getPropertyValue("--node-papier").trim();
+      return cs.getPropertyValue("--node-struktur").trim();
+    }
+    const map = {
+      Person: "--node-person",
+      Struktur: "--node-struktur",
+      Aufgabe: "--node-aufgabe",
+      Prozess: "--node-prozess",
+      Termin: "--node-termin"
+    };
+    return cs.getPropertyValue(map[node.type] || "--node-struktur").trim();
+  }
+
+  function toVisData(graph, { schema }) {
+    const nodes = graph.nodes.map(n => ({
+      id: n.id,
+      label: n.label,
+      title: n.type,
+      shape: "dot",
+      size: schema ? 22 : 14,
+      font: { color: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(), size: schema ? 15 : 12 },
+      color: { background: colorFor(n), border: colorFor(n) },
+      _raw: n
+    }));
+    const edges = graph.edges.map(e => ({
+      from: e.from,
+      to: e.to,
+      arrows: "to",
+      label: schema ? e.type : "",
+      font: { size: 9, color: getComputedStyle(document.documentElement).getPropertyValue("--ink-soft").trim(), strokeWidth: 0 },
+      color: { color: getComputedStyle(document.documentElement).getPropertyValue("--border").trim() },
+      smooth: { type: "continuous" }
+    }));
+    return { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+  }
+
+  const container = document.getElementById("network");
+  let network = null;
+  let currentNodesLookup = {};
+
+  function render(graph, schema) {
+    const data = toVisData(graph, { schema });
+    currentNodesLookup = {};
+    graph.nodes.forEach(n => currentNodesLookup[n.id] = n);
+
+    const options = {
+      physics: { stabilization: true, barnesHut: { gravitationalConstant: schema ? -6000 : -3500, springLength: schema ? 160 : 110 } },
+      interaction: { hover: true, tooltipDelay: 100 },
+      layout: { improvedLayout: true }
+    };
+
+    if (network) network.destroy();
+    network = new vis.Network(container, data, options);
+
+    network.on("click", params => {
+      if (params.nodes.length === 0) {
+        showEmptyDetail();
+        return;
+      }
+      const node = currentNodesLookup[params.nodes[0]];
+      showDetail(node);
+    });
+  }
+
+  function showEmptyDetail() {
+    document.getElementById("detail-empty").style.display = "block";
+    document.getElementById("detail-body").style.display = "none";
+  }
+
+  function showDetail(node) {
+    document.getElementById("detail-empty").style.display = "none";
+    document.getElementById("detail-body").style.display = "block";
+    document.getElementById("detail-type").textContent = node.type;
+    document.getElementById("detail-name").textContent = node.label;
+    const table = document.getElementById("detail-props");
+    table.innerHTML = "";
+    const props = node.props || {};
+    Object.entries(props).forEach(([k, v]) => {
+      const tr = document.createElement("tr");
+      const tdK = document.createElement("td");
+      tdK.textContent = k;
+      const tdV = document.createElement("td");
+      tdV.textContent = v === null || v === undefined ? "–" : String(v);
+      tr.appendChild(tdK);
+      tr.appendChild(tdV);
+      table.appendChild(tr);
+    });
+  }
+
+  function renderLegend(schema) {
+    const legend = document.getElementById("legend");
+    legend.innerHTML = "";
+    const items = schema
+      ? [
+          ["Person", "--node-person"], ["Struktur", "--node-struktur"], ["Aufgabe", "--node-aufgabe"],
+          ["Prozess", "--node-prozess"], ["Termin", "--node-termin"]
+        ]
+      : [
+          ["Person", "--node-person"], ["Struktur", "--node-struktur"], ["Aufgabe", "--node-aufgabe"],
+          ["Prozess", "--node-prozess"], ["Termin", "--node-termin"],
+          ["Restmüll (schwarz)", "--node-restmuell"], ["Biotonne (braun)", "--node-biotonne"],
+          ["Gelber Sack (gelb)", "--node-gelbersack"], ["Papiertonne (grün)", "--node-papier"]
+        ];
+    items.forEach(([label, varName]) => {
+      const row = document.createElement("div");
+      row.className = "legend-row";
+      const dot = document.createElement("span");
+      dot.className = "legend-dot";
+      dot.style.background = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+      row.appendChild(dot);
+      const text = document.createElement("span");
+      text.textContent = label;
+      row.appendChild(text);
+      legend.appendChild(row);
+    });
+  }
+
+  const btnSchema = document.getElementById("btn-schema");
+  const btnInstanzen = document.getElementById("btn-instanzen");
+
+  function activate(schema) {
+    btnSchema.classList.toggle("active", schema);
+    btnInstanzen.classList.toggle("active", !schema);
+    render(schema ? schemaGraph : instanceGraph, schema);
+    renderLegend(schema);
+    showEmptyDetail();
+  }
+
+  btnSchema.addEventListener("click", () => activate(true));
+  btnInstanzen.addEventListener("click", () => activate(false));
+
+  activate(true);
+
+  function renderDigest() {
+    const grid = document.getElementById("digest-grid");
+    grid.innerHTML = "";
+    if (!digest.personen || digest.personen.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "digest-empty";
+      empty.textContent = `Niemand hat aktuell etwas innerhalb der Vorlaufzeit anstehen (Stand ${digest.generiert_am}).`;
+      grid.appendChild(empty);
+      return;
+    }
+    digest.personen.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "digest-card";
+      const name = document.createElement("div");
+      name.className = "person";
+      name.textContent = p.person;
+      card.appendChild(name);
+      p.anstehend.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "digest-item";
+        const left = document.createElement("div");
+        const what = document.createElement("div");
+        what.className = "what";
+        what.textContent = item.aufgabe;
+        left.appendChild(what);
+        if (item.kontext) {
+          const ctx = document.createElement("div");
+          ctx.className = "ctx";
+          ctx.textContent = item.kontext;
+          left.appendChild(ctx);
+        }
+        row.appendChild(left);
+        const pill = document.createElement("span");
+        pill.className = "pill" + (item.tage_bis === 0 ? " today" : "");
+        pill.textContent = item.tage_bis === 0 ? "heute" : `in ${item.tage_bis} Tag(en)`;
+        row.appendChild(pill);
+        card.appendChild(row);
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  renderDigest();
+</script>

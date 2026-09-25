@@ -1,0 +1,16 @@
+# Server (app.py) -- dieselben Versionen auf dem PC und im Home-Assistant-Add-on.
+# kuzu fest auf 0.11.3: das Dateiformat der Datenbank haengt an der Version.
+kuzu==0.11.3
+Flask==2.3.0
+Werkzeug==3.1.6
+requests==2.32.4
+icalendar==7.3.0
+recurring-ical-events==3.8.2
+x-wr-timezone==2.0.1
+tzdata==2026.4
+# Kuzu liefert Tabellen (get_as_df) als pandas-DataFrame -- schema.py, graph_query.py.
+pandas==2.3.0
+numpy==2.3.1
+
+# Nur fuer den MCP-Server (mcp_server.py, Claude Desktop):
+#   pip install mcp==2.2.0 pydantic==2.13.5

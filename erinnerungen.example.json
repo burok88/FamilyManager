@@ -1,0 +1,13 @@
+{
+  "abend": "19:00",
+  "morgen": "07:00",
+  "stunden_vorher": 2,
+  "homeassistant": {
+    "url": "http://homeassistant.local:8123",
+    "token": "HIER_LANGLEBIGES_TOKEN_AUS_HOME_ASSISTANT_EINTRAGEN"
+  },
+  "empfaenger": {
+    "Max": "notify.mobile_app_NAME_VON_MAX_HANDY",
+    "Anna": "notify.mobile_app_NAME_VON_ANNA_HANDY"
+  }
+}

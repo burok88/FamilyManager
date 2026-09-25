@@ -1,0 +1,65 @@
+# Copyright (c) 2026. Erstellt via Vibe Coding. Nur für private und nicht-kommerzielle Nutzung.
+# Baut das Container-Image der Home-Assistant-App und legt es in die GitHub Container
+# Registry. Home Assistant laedt es von dort (config.yaml -> image), statt selbst zu bauen.
+# Das Tag ist die Version aus config.yaml: nur eine neue Version zeigt Home Assistant als
+# Update an.
+name: App-Image bauen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.py"
+      - "static/**"
+      - "requirements.txt"
+      - "homeassistant/**"
+      - ".github/workflows/app-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: App-Ordner zusammenstellen
+        run: python build_addon.py
+
+      - name: Version und Image-Name
+        id: meta
+        run: |
+          version=$(sed -n 's/^version: "\(.*\)"$/\1/p' homeassistant/ontofam/config.yaml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ontofam-amd64" >> "$GITHUB_OUTPUT"
+
+      - name: Image bauen
+        run: >
+          docker build
+          --build-arg BUILD_VERSION=${{ steps.meta.outputs.version }}
+          -t ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+          dist/homeassistant/ontofam
+
+      # Vor dem Veroeffentlichen: app.py im Container laden -- das oeffnet eine leere
+      # Datenbank und legt das Schema an. Faengt fehlende Pakete und CPU-Probleme ab.
+      - name: Image pruefen
+        run: >
+          docker run --rm -e ONTOFAM_DB=/tmp/test_db ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+          python -c "import sys; sys.path.insert(0, '/app'); import waitress, app;
+          print('ok:', sorted(app.VERTRAUTE_ADRESSEN), app.DB_PATH)"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image veroeffentlichen
+        run: docker push ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}

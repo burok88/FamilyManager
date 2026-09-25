@@ -1,0 +1,10 @@
+kuzu_db
+kuzu_db.wal
+export/
+__pycache__/
+*.pyc
+flask.log
+flask.err.log
+calendar_sources.json
+dist/
+erinnerungen.json

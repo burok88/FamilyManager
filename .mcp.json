@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ontofam": {
+      "command": "C:\\Python312\\python.exe",
+      "args": ["mcp_server.py"],
+      "env": { "ONTOFAM_API": "http://localhost:5000" }
+    }
+  }
+}

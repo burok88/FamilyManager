@@ -1,0 +1,6 @@
+# Copyright (c) 2026. Erstellt via Vibe Coding. Nur für private und nicht-kommerzielle Nutzung.
+# Macht dieses Repository zur App-Quelle fuer Home Assistant:
+# Einstellungen -> Apps -> App-Store -> ⋮ -> Repositories -> URL eintragen.
+name: FamilyManager (ontoFam)
+url: https://github.com/burok88/FamilyManager
+maintainer: burok88
