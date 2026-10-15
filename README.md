@@ -98,14 +98,14 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 
 ## KI-Anbindung per MCP (Claude Desktop, Gemini CLI, Home Assistant)
 
-`mcp-server/mcp_server.py` stellt die Ontologie als 20 Tools bereit (u.a. `erinnerungen_vorschau`,
+`mcp-server/mcp_server.py` stellt die Ontologie als 21 Tools bereit (u.a. `erinnerungen_vorschau`,
 `erinnerung_testen`): `personen_auflisten`,
 `person_anlegen`, `aufgaben_auflisten`, `anstehende_aufgaben(tage, person)`,
 `aufgabe_anlegen(name, datum, person, betrifft, ort, uhrzeit, dauer_minuten, …)`,
 `zustaendigkeit_setzen`, `betroffene_person_setzen`, `als_erledigt_markieren`,
 `erledigung_zuruecksetzen`, `rueckblick(tage, person)`, `stundenplan_setzen`,
 `stundenplan_abfragen`, `stundenplan_eintragen`, `stundenplan_loeschen`,
-`tonnentermine_setzen(tonne, termine)`, `kalender_synchronisieren`, `schema_beschreiben`,
+`tonnentermine_setzen(tonne, termine)`, `rueckmeldung_setzen(aufgabe, an)`, `kalender_synchronisieren`, `schema_beschreiben`,
 `graph_abfragen(cypher)`.
 Damit funktioniert z.B. *"Max muss Lena am Dienstag den 22. September zum Hautarzt
 bringen"* → die KI legt Aufgabe + Termin an und ordnet Max zu; *"Was steht diese Woche
@@ -203,6 +203,11 @@ verpasst?"* → `rueckblick`. `anstehende_aufgaben` zeigt den Status mit.
   Erfassung lag (`ONTOFAM_ERFASSUNG_SEIT`, Standard 24.09.2026). Sonst stünde beim ersten
   Rückblick die ganze Vergangenheit als verpasst da. Kein Hintergrundprozess muss um
   Mitternacht etwas umstempeln.
+- **Ohne Rückmeldung:** Bei Routinen, deren Erledigung niemand meldet, wäre jeder Termin
+  danach „verpasst“. `Aufgabe.rueckmeldung = false` (Werkzeug `rueckmeldung_setzen`)
+  ersetzt offen/verpasst durch `ohne_rueckmeldung`; Erinnerungen kommen trotzdem, und wer
+  doch meldet, wird als `erledigt` festgehalten. Müll-Aufgaben sind von Anfang an ohne
+  Rückmeldung — beim Update bestehender Datenbanken setzt die Migration das einmalig.
 - **Müll:** Tonnen werden am Vorabend rausgestellt. Gibt es am genannten Tag keinen
   Termin, liefert der Server die Termine der Woche davor und danach mit, damit die KI den
   richtigen findet.

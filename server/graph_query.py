@@ -65,7 +65,8 @@ Hinweise:
   - Nur Lesen. CREATE, DELETE, SET und aehnliches werden abgewiesen.
   - Importierte Kalendertermine tragen kategorie = 'Kalender-Import'.
   - Erledigung haengt an Aufgabe UND Termin. Gespeichert ist nur status 'erledigt'
-    oder 'entfaellt'. Ein Termin ohne Erledigung ist offen, nach seinem Tag verpasst.
+    oder 'entfaellt'. Ein Termin ohne Erledigung ist offen, nach seinem Tag verpasst --
+    ausser bei Aufgaben mit rueckmeldung = false (z.B. Muell): dort gibt es kein verpasst.
     Wer hat wie viel erledigt:
     MATCH (e:Erledigung {{status: 'erledigt'}})-[:ERLEDIGT_DURCH]->(p:Person)
     RETURN p.name, count(e) AS anzahl ORDER BY anzahl DESC

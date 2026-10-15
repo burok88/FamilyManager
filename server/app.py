@@ -311,7 +311,8 @@ def set_ressource_termine():
             aid, aname = new_id("a"), aufgabe_name
             _conn.execute(
                 """CREATE (:Aufgabe {id: $id, name: $name, kategorie: 'Haushalt',
-                                     beschreibung: 'Tonne an den Straßenrand stellen'})""",
+                                     beschreibung: 'Tonne an den Straßenrand stellen',
+                                     rueckmeldung: false})""",
                 {"id": aid, "name": aname})
         _conn.execute(
             """MATCH (a:Aufgabe {id: $aid}), (r:Ressource {id: $rid})
@@ -358,13 +359,14 @@ def list_aufgaben():
         MATCH (a:Aufgabe)
         OPTIONAL MATCH (a)-[:AUFGABE_AN_ORT]->(s:Struktur)
         OPTIONAL MATCH (a)-[tv:TEIL_VON]->(pr:Prozess)
-        RETURN a.id, a.name, a.beschreibung, a.kategorie, s.name, pr.name, tv.reihenfolge
+        RETURN a.id, a.name, a.beschreibung, a.kategorie, s.name, pr.name, tv.reihenfolge,
+               a.rueckmeldung
         ORDER BY a.name
         """
     )
     items = []
     while result.has_next():
-        aid, name, beschreibung, kategorie, ort, prozess, reihenfolge = result.get_next()
+        aid, name, beschreibung, kategorie, ort, prozess, reihenfolge, rueckmeldung = result.get_next()
         items.append(
             {
                 "id": aid,
@@ -374,9 +376,24 @@ def list_aufgaben():
                 "ort": ort,
                 "prozess": prozess,
                 "reihenfolge": reihenfolge,
+                "rueckmeldung": rueckmeldung is not False,
             }
         )
     return jsonify(items)
+
+
+@app.put("/api/aufgaben/<aufgabe_id>/rueckmeldung")
+def set_rueckmeldung(aufgabe_id: str):
+    """Ob fuer diese Aufgabe festgehalten wird, ob sie erledigt ist (offen/verpasst)."""
+    an = (request.get_json(force=True) or {}).get("an")
+    if not isinstance(an, bool):
+        return jsonify({"error": "'an' muss true oder false sein."}), 400
+    ergebnis = _conn.execute(
+        "MATCH (a:Aufgabe {id: $id}) SET a.rueckmeldung = $an RETURN a.name",
+        {"id": aufgabe_id, "an": an})
+    if not ergebnis.has_next():
+        return jsonify({"error": "Aufgabe nicht gefunden."}), 404
+    return jsonify({"aufgabe": ergebnis.get_next()[0], "rueckmeldung": an})
 
 
 @app.post("/api/aufgaben")
@@ -1150,7 +1167,7 @@ _TERMIN_ZUSATZ = """
            t.datum AS datum, t.ort AS ort, t.beginn AS beginn, t.dauer_minuten AS dauer_minuten,
            p.name AS verantwortlich, v.vorlaufzeit_tage AS vorlauf,
            b.name AS betroffen, {kontext} AS kontext,
-           e.status AS status, d.name AS erledigt_von
+           e.status AS status, d.name AS erledigt_von, a.rueckmeldung AS rueckmeldung
 """
 
 TERMIN_QUERIES = [
@@ -1162,7 +1179,10 @@ TERMIN_QUERIES = [
 ]
 
 
-def _abgeleiteter_status(datum: date, heute: date) -> str:
+def _abgeleiteter_status(datum: date, heute: date, rueckmeldung: bool = True) -> str:
+    # Ohne Rueckmeldung weiss niemand, ob es erledigt ist -- also weder offen noch verpasst.
+    if rueckmeldung is False:
+        return "ohne_rueckmeldung"
     if datum >= heute:
         return "offen"
     return "verpasst" if datum >= ERFASSUNG_SEIT else "unbekannt"
@@ -1195,7 +1215,8 @@ def _termine_im_zeitraum(von: date, bis: date, person: str = "") -> list[dict]:
                     "beginn": zeile["beginn"] or "",
                     "dauer_minuten": zeile["dauer_minuten"] or 0,
                     "kontext": zeile["kontext"],
-                    "status": zeile["status"] or _abgeleiteter_status(zeile["datum"], heute),
+                    "status": zeile["status"] or _abgeleiteter_status(
+                        zeile["datum"], heute, zeile["rueckmeldung"]),
                     "erledigt_von": zeile["erledigt_von"],
                     "personen": [],
                     "vorlauf": {},
@@ -1242,7 +1263,8 @@ def rueckblick():
     von = heute - timedelta(days=tage)
     liste = _termine_im_zeitraum(von, heute, request.args.get("person") or "")
     zusammenfassung = {status: sum(1 for e in liste if e["status"] == status)
-                       for status in ("erledigt", "entfaellt", "verpasst", "offen", "unbekannt")}
+                       for status in ("erledigt", "entfaellt", "verpasst", "offen", "unbekannt",
+                                      "ohne_rueckmeldung")}
     return jsonify({"von": von.isoformat(), "bis": heute.isoformat(), "eintraege": liste,
                     "zusammenfassung": zusammenfassung, **_kalender_stand()})
 

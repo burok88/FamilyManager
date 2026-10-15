@@ -118,7 +118,19 @@ SPALTEN = [
     # aussehen, als haette Nico zwei Faecher gleichzeitig.
     "ALTER TABLE Schulstunde ADD IF NOT EXISTS lehrer STRING DEFAULT ''",
     "ALTER TABLE Schulstunde ADD IF NOT EXISTS woche STRING DEFAULT ''",
+    # Ob jemand zurueckmeldet, dass die Aufgabe erledigt ist. Bei Routinen wie dem Muell
+    # tut das kaum jemand -- dort waere jeder Termin danach "verpasst". Aus: kein
+    # offen/verpasst, Erinnerungen kommen trotzdem.
+    "ALTER TABLE Aufgabe ADD IF NOT EXISTS rueckmeldung BOOLEAN DEFAULT true",
 ]
+
+# Einmalige Nacharbeit, wenn eine Spalte neu dazukommt -- fuer Bestandsdaten, bei denen
+# der Standardwert nicht passt.
+NACHARBEIT = {
+    # Muell haengt ueber Tonnen (Ressourcen) an der Aufgabe: ohne Rueckmeldung.
+    "Aufgabe.rueckmeldung":
+        "MATCH (a:Aufgabe)-[:BEZIEHT_SICH_AUF]->(:Ressource) SET a.rueckmeldung = false",
+}
 
 
 def _zustand(conn) -> set[str]:
@@ -137,7 +149,11 @@ def migriere(conn) -> list[str]:
     vorher = _zustand(conn)
     for anweisung in KNOTEN + KANTEN + SPALTEN:
         conn.execute(anweisung)
-    return sorted(_zustand(conn) - vorher)
+    neu = sorted(_zustand(conn) - vorher)
+    for spalte in neu:
+        if spalte in NACHARBEIT:
+            conn.execute(NACHARBEIT[spalte])
+    return neu
 
 
 def wochentag_nummer(name: str) -> int:

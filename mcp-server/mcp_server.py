@@ -104,8 +104,9 @@ def aufgaben_auflisten() -> list[dict]:
 def anstehende_aufgaben(tage: int = 7, person: str | None = None) -> dict:
     """Was steht in den naechsten `tage` Tagen an? Optional auf eine Person gefiltert.
     Liefert pro Termin Aufgabe, Datum, Tage bis dahin, Kontext (z.B. Tonnenart) und
-    zustaendige Personen sowie status: 'offen', 'erledigt' (mit erledigt_von) oder
-    'entfaellt'. Kalendertermine sind automatisch aktuell. Ist kalender_fehler
+    zustaendige Personen sowie status: 'offen', 'erledigt' (mit erledigt_von),
+    'entfaellt' oder 'ohne_rueckmeldung' (Routinen wie Muell, deren Erledigung niemand
+    meldet -- dem Nutzer nicht als offen vorhalten). Kalendertermine sind automatisch aktuell. Ist kalender_fehler
     gesetzt, war Google zuletzt nicht erreichbar -- dann dem Nutzer sagen, dass
     Kalendertermine auf dem Stand von kalender_stand sind."""
     params = {"tage": tage}
@@ -321,6 +322,26 @@ def tonnentermine_setzen(tonne: str, termine: list[str], farbe: str = "",
     return daten
 
 
+@server.tool()
+def rueckmeldung_setzen(aufgabe: str, an: bool) -> dict:
+    """Festlegen, ob fuer eine Aufgabe festgehalten wird, ob sie erledigt wurde.
+
+    an=False fuer Routinen, bei denen niemand zurueckmeldet ("beim Muell brauchen wir
+    keine Rueckmeldung"): ihre Termine sind dann weder 'offen' noch 'verpasst', sondern
+    'ohne_rueckmeldung'. Erinnerungen kommen trotzdem. Muell-Aufgaben aus
+    tonnentermine_setzen sind von Anfang an ohne Rueckmeldung. an=True schaltet das
+    Verfolgen wieder ein."""
+    try:
+        a = _finde(_get("/api/aufgaben"), aufgabe, "Aufgabe")
+    except ValueError as e:
+        return {"fehler": str(e)}
+    r = _http.put(f"{API}/api/aufgaben/{a['id']}/rueckmeldung", json={"an": an}, timeout=15)
+    daten = r.json()
+    if not r.ok:
+        return {"fehler": daten.get("error")}
+    return daten
+
+
 def _mit_id(pfad: str, name: str, was: str) -> dict:
     return _finde(_get(pfad), name, was)
 
@@ -381,7 +402,9 @@ def erledigung_zuruecksetzen(aufgabe: str, datum: str) -> dict:
 def rueckblick(tage: int = 7, person: str | None = None) -> dict:
     """Was in den letzten `tage` Tagen anstand und was daraus wurde: erledigt (mit wer),
     entfaellt, verpasst oder -- fuer heute -- noch offen. 'unbekannt' heisst: der Termin
-    lag vor Beginn der Erfassung, ob er erledigt wurde, weiss niemand. Mit Zusammenfassung.
+    lag vor Beginn der Erfassung, ob er erledigt wurde, weiss niemand.
+    'ohne_rueckmeldung': Routine ohne Rueckmeldung (z.B. Muell) -- nicht als verpasst
+    werten. Mit Zusammenfassung.
     person filtert auf alles, wofuer die Person zustaendig war, worum es bei ihr ging
     oder was sie erledigt hat."""
     params = {"tage": tage}
