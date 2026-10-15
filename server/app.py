@@ -260,6 +260,94 @@ def delete_ressource(ressource_id: str):
     return "", 204
 
 
+def _kennung(*teile: str) -> str:
+    """"Restmüll", "schwarz" -> "restmuell-schwarz" -- dieselbe Form wie die Codes aus
+    data/tonnenarten.json, damit Datenbanken vom PC und aus der App zusammenpassen."""
+    text = "-".join(t for t in teile if t).lower()
+    for alt, neu in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        text = text.replace(alt, neu)
+    return "-".join(filter(None, "".join(z if z.isalnum() else " " for z in text).split()))
+
+
+@app.put("/api/ressourcen/termine")
+def set_ressource_termine():
+    """Abholtermine einer Tonne uebernehmen -- legt Tonne und Aufgabe an, wenn noetig.
+
+    Ein Abgleich wie beim Kalender-Sync: im Zeitraum vom ersten bis zum letzten
+    uebergebenen Tag gilt genau diese Liste, ausserhalb bleibt alles stehen. Bestehende
+    Termine bleiben als Knoten erhalten -- und mit ihnen festgehaltene Erledigungen.
+    """
+    body = request.get_json(force=True)
+    tonne = (body.get("tonne") or "").strip()
+    farbe = (body.get("farbe") or "").strip()
+    aufgabe_name = (body.get("aufgabe") or "Müll rausbringen").strip()
+    if not tonne:
+        return jsonify({"error": "Name der Tonne fehlt (z.B. 'Restmüll')."}), 400
+    try:
+        tage = sorted({date.fromisoformat(str(d).strip()) for d in body.get("termine") or []})
+    except ValueError:
+        return jsonify({"error": "Termine als ISO-Datum (JJJJ-MM-TT) angeben."}), 400
+    if not tage:
+        return jsonify({"error": "Keine Termine angegeben."}), 400
+
+    def schritte():
+        gefunden = _conn.execute(
+            "MATCH (r:Ressource) WHERE lower(r.name) = lower($name) RETURN r.id, r.name",
+            {"name": tonne})
+        if gefunden.has_next():
+            (rid, name), tonne_neu = gefunden.get_next(), False
+        else:
+            rid, name, tonne_neu = _kennung(tonne, farbe) or new_id("res"), tonne, True
+            _conn.execute(
+                "CREATE (:Ressource {id: $id, name: $name, farbe: $farbe, kalender_code: ''})",
+                {"id": rid, "name": tonne, "farbe": farbe})
+
+        gefunden = _conn.execute(
+            "MATCH (a:Aufgabe) WHERE lower(a.name) = lower($name) RETURN a.id, a.name",
+            {"name": aufgabe_name})
+        if gefunden.has_next():
+            aid, aname = gefunden.get_next()
+        else:
+            aid, aname = new_id("a"), aufgabe_name
+            _conn.execute(
+                """CREATE (:Aufgabe {id: $id, name: $name, kategorie: 'Haushalt',
+                                     beschreibung: 'Tonne an den Straßenrand stellen'})""",
+                {"id": aid, "name": aname})
+        _conn.execute(
+            """MATCH (a:Aufgabe {id: $aid}), (r:Ressource {id: $rid})
+               WHERE NOT EXISTS { MATCH (a)-[:BEZIEHT_SICH_AUF]->(r) }
+               CREATE (a)-[:BEZIEHT_SICH_AUF]->(r)""",
+            {"aid": aid, "rid": rid})
+
+        ist = {}
+        ergebnis = _conn.execute(
+            "MATCH (:Ressource {id: $rid})-[:RESSOURCE_HAT_TERMIN]->(t:Termin) RETURN t.id, t.datum",
+            {"rid": rid})
+        while ergebnis.has_next():
+            tid, tag = ergebnis.get_next()
+            ist[tag] = tid
+        von, bis = tage[0], tage[-1]
+        entfernt = [tid for tag, tid in ist.items() if von <= tag <= bis and tag not in tage]
+        for tid in entfernt:
+            _conn.execute("MATCH (t:Termin {id: $id}) DETACH DELETE t", {"id": tid})
+        neu = [tag for tag in tage if tag not in ist]
+        for tag in neu:
+            tid = f"termin-{rid}-{tag.isoformat()}"
+            _conn.execute(
+                """CREATE (:Termin {id: $id, datum: $datum, ort: '', beginn: '', dauer_minuten: 0})""",
+                {"id": tid, "datum": tag})
+            _conn.execute(
+                """MATCH (r:Ressource {id: $rid}), (t:Termin {id: $tid})
+                   CREATE (r)-[:RESSOURCE_HAT_TERMIN]->(t)""",
+                {"rid": rid, "tid": tid})
+        entferne_verwaiste_erledigungen(_conn)
+        return {"tonne": name, "ressource_id": rid, "tonne_neu_angelegt": tonne_neu,
+                "aufgabe": aname, "zeitraum": [von.isoformat(), bis.isoformat()],
+                "neu": len(neu), "entfernt": len(entfernt), "unveraendert": len(tage) - len(neu)}
+
+    return jsonify(_in_transaktion(schritte))
+
+
 # --- Aufgabe: kann direkt bei Anlage mit Struktur (Ort) und Prozess verknüpft werden ---
 
 

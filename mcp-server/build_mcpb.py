@@ -22,7 +22,7 @@ MANIFEST = {
     "manifest_version": "0.2",
     "name": "ontofam",
     "display_name": "ontoFam – Haushalts-Ontologie",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "Personen, Aufgaben und Termine der Familie abfragen und anlegen.",
     "long_description": (
         "Stellt die Haushalts-Ontologie (Kuzu-Graph hinter app.py) als Tools bereit: "
@@ -75,6 +75,7 @@ MANIFEST = {
         {"name": "stundenplan_abfragen", "description": "Stundenplan eines Kindes abfragen"},
         {"name": "stundenplan_eintragen", "description": "Einzelne Schulstunde nachtragen oder korrigieren"},
         {"name": "stundenplan_loeschen", "description": "Kompletten Stundenplan einer Person loeschen"},
+        {"name": "tonnentermine_setzen", "description": "Abholtermine einer Muelltonne uebernehmen"},
         {"name": "zustaendigkeit_setzen", "description": "Aufgabe einer Person zuordnen"},
         {"name": "als_erledigt_markieren", "description": "Festhalten, dass eine Aufgabe erledigt wurde"},
         {"name": "erledigung_zuruecksetzen", "description": "Eine Erledigung zuruecknehmen"},

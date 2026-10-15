@@ -43,6 +43,8 @@ server = MCPServer(
         "gemaeht'), das mit als_erledigt_markieren festhalten. "
         "Gibt der Nutzer einen Stundenplan (PDF, Foto), den Plan mit "
         "stundenplan_setzen komplett uebernehmen -- nicht Stunde fuer Stunde. "
+        "Abholtermine von Muelltonnen (Abfallkalender, Rhythmus) mit tonnentermine_setzen "
+        "uebernehmen, ein Aufruf je Tonne -- nicht als einzelne Aufgaben. "
         "Fuer Fragen, die keines der "
         "fertigen Werkzeuge abdeckt, zuerst schema_beschreiben aufrufen und dann "
         "mit graph_abfragen eine eigene Cypher-Abfrage stellen."
@@ -293,6 +295,30 @@ def stundenplan_loeschen(person: str) -> dict:
     r = _http.delete(f"{API}/api/schulstunden/person/{p['id']}", timeout=15)
     r.raise_for_status()
     return {"person": p["name"], **r.json()}
+
+
+@server.tool()
+def tonnentermine_setzen(tonne: str, termine: list[str], farbe: str = "",
+                         aufgabe: str = "Müll rausbringen") -> dict:
+    """Abholtermine EINER Tonne uebernehmen (Restmuell, Biotonne, Gelber Sack, Papier ...),
+    z.B. aus einem Abfallkalender (PDF, Foto) oder aus einer Regel wie "alle 2 Wochen
+    montags ab 13.10.". Fuer jede Tonne ein eigener Aufruf.
+
+    termine: alle Abholtage als ISO-Datum (YYYY-MM-DD). Bei einer Regel die Tage selbst
+    ausrechnen; bekannte Verschiebungen wegen Feiertagen beruecksichtigen.
+    farbe: Farbe der Tonne, z.B. "schwarz" -- hilft beim Wiedererkennen.
+
+    Die Tonne wird angelegt, falls es sie noch nicht gibt, und mit der Aufgabe (Standard
+    "Muell rausbringen") verknuepft. Im Zeitraum vom ersten bis zum letzten Tag ersetzt
+    die Liste die bisherigen Termine dieser Tonne; davor und danach bleibt alles stehen,
+    ebenso Erledigungen an unveraenderten Tagen. Wer rausstellt, danach mit
+    zustaendigkeit_setzen festlegen (Vorlaufzeit 1 = Erinnerung am Vorabend)."""
+    r = _http.put(f"{API}/api/ressourcen/termine", json={
+        "tonne": tonne, "farbe": farbe, "aufgabe": aufgabe, "termine": termine}, timeout=60)
+    daten = r.json()
+    if not r.ok:
+        return {"fehler": daten.get("error")}
+    return daten
 
 
 def _mit_id(pfad: str, name: str, was: str) -> dict:

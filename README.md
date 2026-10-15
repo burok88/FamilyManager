@@ -98,14 +98,15 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 
 ## KI-Anbindung per MCP (Claude Desktop, Gemini CLI, Home Assistant)
 
-`mcp-server/mcp_server.py` stellt die Ontologie als 19 Tools bereit (u.a. `erinnerungen_vorschau`,
+`mcp-server/mcp_server.py` stellt die Ontologie als 20 Tools bereit (u.a. `erinnerungen_vorschau`,
 `erinnerung_testen`): `personen_auflisten`,
 `person_anlegen`, `aufgaben_auflisten`, `anstehende_aufgaben(tage, person)`,
 `aufgabe_anlegen(name, datum, person, betrifft, ort, uhrzeit, dauer_minuten, …)`,
 `zustaendigkeit_setzen`, `betroffene_person_setzen`, `als_erledigt_markieren`,
 `erledigung_zuruecksetzen`, `rueckblick(tage, person)`, `stundenplan_setzen`,
 `stundenplan_abfragen`, `stundenplan_eintragen`, `stundenplan_loeschen`,
-`kalender_synchronisieren`, `schema_beschreiben`, `graph_abfragen(cypher)`.
+`tonnentermine_setzen(tonne, termine)`, `kalender_synchronisieren`, `schema_beschreiben`,
+`graph_abfragen(cypher)`.
 Damit funktioniert z.B. *"Max muss Lena am Dienstag den 22. September zum Hautarzt
 bringen"* → die KI legt Aufgabe + Termin an und ordnet Max zu; *"Was steht diese Woche
 an?"* → Abfrage. Voraussetzung: `app.py` läuft.
@@ -366,12 +367,16 @@ Nach einer Regeländerung: `python tools/generate_muellkalender_csv.py` (schreib
 Personen/Struktur/Aufgaben unangetastet — dafür vorher `app.py` stoppen, da Kùzu nur einen
 schreibenden Prozess gleichzeitig zulässt).
 
+**Im laufenden Betrieb (auch in der Home-Assistant-App)** geht es ohne Skript: Werkzeug
+`tonnentermine_setzen` bzw. `PUT /api/ressourcen/termine` mit
+`{"tonne": "Restmüll", "farbe": "schwarz", "termine": ["2026-10-19", …]}`. Legt Tonne
+und Aufgabe „Müll rausbringen“ an, wenn nötig, und gleicht wie der Kalender-Sync nur den
+Zeitraum der übergebenen Tage ab — Erledigungen an unveränderten Tagen bleiben.
+
 ## Geplante spätere Schritte
 
 - **Schreiben in den Google-Kalender** (Calendar-API + OAuth), damit KI-Einträge auch im
   Kalender landen.
-- **Müllkalender in der App**: `tools/reload_muellkalender.py` greift direkt auf die Datei zu;
-  bis zum nächsten Jahreswechsel über die API umbauen.
 - **GraphRAG weiter**: Längere Freitexte (Elternbriefe, Anleitungen) als `Dokument`
   mit Zerlegung in Abschnitte und Volltextsuche über die `fts`-Erweiterung (deutscher
   Stemmer), danach optional Embeddings über die `vector`-Erweiterung von Kùzu — beide
