@@ -15,3 +15,4 @@ numpy==2.3.1
 # MCP-Server (mcp-server/mcp_server.py) -- fuer Claude Desktop und Assist in Home Assistant.
 mcp==2.2.0
 pydantic==2.13.5
+websockets==15.0.1

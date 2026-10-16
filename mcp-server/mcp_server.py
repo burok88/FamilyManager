@@ -45,6 +45,8 @@ server = MCPServer(
         "stundenplan_setzen komplett uebernehmen -- nicht Stunde fuer Stunde. "
         "Abholtermine von Muelltonnen (Abfallkalender, Rhythmus) mit tonnentermine_setzen "
         "uebernehmen, ein Aufruf je Tonne -- nicht als einzelne Aufgaben. "
+        "Neue Termine landen in der Regel von selbst im Familienkalender; soll etwas nicht "
+        "hinein, aus_kalender_entfernen. "
         "Fuer Fragen, die keines der "
         "fertigen Werkzeuge abdeckt, zuerst schema_beschreiben aufrufen und dann "
         "mit graph_abfragen eine eigene Cypher-Abfrage stellen."
@@ -159,6 +161,9 @@ def aufgabe_anlegen(
     ergebnis = {"aufgabe": name, "aufgabe_id": aufgabe["id"], "datum": termin["datum"],
                 "uhrzeit": termin["beginn"], "ort": termin["ort"],
                 "dauer_minuten": termin["dauer_minuten"]}
+    if termin.get("im_kalender"):
+        # Der Eintrag selbst folgt ein paar Sekunden spaeter im Hintergrund.
+        ergebnis["im_kalender"] = termin["im_kalender"]
     if p:
         _post("/api/zustaendigkeiten", {
             "person_id": p["id"], "aufgabe_id": aufgabe["id"], "vorlaufzeit_tage": vorlaufzeit_tage,
@@ -339,6 +344,40 @@ def rueckmeldung_setzen(aufgabe: str, an: bool) -> dict:
     daten = r.json()
     if not r.ok:
         return {"fehler": daten.get("error")}
+    return daten
+
+
+@server.tool()
+def in_kalender_eintragen(aufgabe: str, datum: str = "", erneut: bool = False) -> dict:
+    """Kuenftige Termine einer Aufgabe in den Familienkalender (Google, ueber Home
+    Assistant) eintragen.
+
+    Neue Termine kommen in der Regel von selbst hinein (aufgabe_anlegen meldet das als
+    im_kalender). Dieses Werkzeug ist fuer aeltere Aufgaben oder wenn ein Eintrag fehlt.
+    datum: YYYY-MM-DD, nur dieser Termin; leer = alle kuenftigen Termine der Aufgabe.
+    erneut=True legt auch Eintraege neu an, die im Kalender geloescht wurden.
+    Muelltermine und Termine, die aus dem Kalender stammen, kommen nie hinein.
+    Wird ein Termin in ontoFam geloescht oder geaendert, zieht ontoFam den Eintrag selbst nach."""
+    return _kalender("post", aufgabe, {"datum": datum, "erneut": erneut})
+
+
+@server.tool()
+def aus_kalender_entfernen(aufgabe: str, datum: str = "") -> dict:
+    """Eintraege einer Aufgabe wieder aus dem Familienkalender nehmen ("das muss nicht in
+    den Kalender"). Die Aufgabe und ihre Termine bleiben in ontoFam.
+    datum: YYYY-MM-DD, nur dieser Termin; leer = alle kuenftigen."""
+    return _kalender("delete", aufgabe, {"datum": datum})
+
+
+def _kalender(methode: str, aufgabe: str, body: dict) -> dict:
+    try:
+        a = _finde(_get("/api/aufgaben"), aufgabe, "Aufgabe")
+    except ValueError as e:
+        return {"fehler": str(e)}
+    r = _http.request(methode, f"{API}/api/aufgaben/{a['id']}/kalender", json=body, timeout=120)
+    daten = r.json()
+    if not r.ok:
+        return {**{k: v for k, v in daten.items() if k != "error"}, "fehler": daten.get("error")}
     return daten
 
 

@@ -23,6 +23,7 @@ from flask import Flask, g, jsonify, request, send_from_directory
 from export_graph import export_edges, export_nodes
 from graph_query import TIMEOUT_MS, beschreibe_schema, fuehre_lesend_aus, schema_als_text
 from import_calendar import (
+    IMPORT_KATEGORIE,
     SOURCES_PATH,
     clear_previous_import,
     entferne_verwaiste_erledigungen,
@@ -30,7 +31,16 @@ from import_calendar import (
     massgeblicher_zeitraum,
     synchronisiere,
 )
-from erinnerungen import faellige, kanal_fuer, lade_einstellungen, nachricht, plane, sende
+from erinnerungen import (
+    faellige,
+    homeassistant_zugang,
+    kanal_fuer,
+    lade_einstellungen,
+    nachricht,
+    plane,
+    sende,
+)
+import kalender_schreiben
 from schema import ERLEDIGUNG_STATUS, WOCHEN, WOCHENTAGE, migriere, wochentag_nummer
 
 # Projektordner (eine Ebene ueber server/): dort liegen Datenbank und Einstellungen,
@@ -396,6 +406,280 @@ def set_rueckmeldung(aufgabe_id: str):
     return jsonify({"aufgabe": ergebnis.get_next()[0], "rueckmeldung": an})
 
 
+# --- Familienkalender (Google, ueber Home Assistant) ---
+# Termin.im_kalender ist der Wunsch: in welchen Kalender der Termin gehoert, leer = in
+# keinen. Termin.kalender_stand ist der Fingerabdruck dessen, was zuletzt eingetragen
+# wurde. Den Kalender selbst bringt kalender_eintraege_abgleichen auf diesen Stand --
+# im Hintergrund nach jeder Aenderung, damit eine Anfrage nicht auf Google warten muss.
+
+_kalender_wecker = threading.Event()
+_kalender_schreib_zustand: dict = {"letzter_lauf": None, "letzter_fehler": None, "ergebnis": None}
+# So weit voraus sucht der Abgleich nach eigenen Eintraegen, die weg muessen.
+KALENDER_FENSTER = timedelta(days=400)
+
+
+def _kalender_ziel(einstellungen: dict | None = None) -> tuple[dict | None, str]:
+    einstellungen = einstellungen or lade_einstellungen()
+    return homeassistant_zugang(einstellungen), (einstellungen.get("kalender_schreiben") or "").strip()
+
+
+def _kalender_nicht_eingerichtet(ha: dict | None, ziel: str):
+    """Antwort mit Hinweis, was fehlt -- oder None, wenn alles da ist."""
+    if not ha:
+        return jsonify({"error": "Keine Verbindung zu Home Assistant eingerichtet."}), 400
+    if ziel:
+        return None
+    try:
+        vorhanden = ", ".join(f"{k['entity_id']} ({k['name']})"
+                              for k in kalender_schreiben.kalender_liste(ha)) or "keine"
+    except Exception as fehler:
+        vorhanden = kalender_schreiben.fehlertext(fehler)
+    return jsonify({"error": "Kein Kalender zum Eintragen festgelegt (Option "
+                             f"'kalender_schreiben'). Kalender in Home Assistant: {vorhanden}"}), 400
+
+
+def _nicht_fuer_kalender(aufgabe_id: str) -> str | None:
+    """Warum die Aufgabe nicht in den Familienkalender gehoert -- sonst None."""
+    zeile = _conn.execute(
+        """MATCH (a:Aufgabe {id: $id}) OPTIONAL MATCH (a)-[:BEZIEHT_SICH_AUF]->(r:Ressource)
+           RETURN a.name, a.kategorie, r.name LIMIT 1""", {"id": aufgabe_id})
+    if not zeile.has_next():
+        return "Aufgabe nicht gefunden."
+    name, kategorie, ressource = zeile.get_next()
+    if kategorie == IMPORT_KATEGORIE:
+        return f"'{name}' stammt aus dem Kalender und steht dort schon."
+    if ressource:
+        # Muelltermine haengen an der Tonne und wuerden den Kalender fluten.
+        return f"Die Termine von '{name}' gehören zu '{ressource}' und kommen nicht in den Familienkalender."
+    return None
+
+
+def _automatisch_in(aufgabe_id: str) -> str:
+    """Kalender, in den ein neuer Termin dieser Aufgabe von selbst kommt, sonst ''."""
+    einstellungen = lade_einstellungen()
+    ha, ziel = _kalender_ziel(einstellungen)
+    if not (ha and ziel and einstellungen.get("kalender_automatisch")):
+        return ""
+    return "" if _nicht_fuer_kalender(aufgabe_id) else ziel
+
+
+def _gewuenschte_eintraege(ziel: str, heute: date) -> dict[str, dict]:
+    ergebnis = _conn.execute(
+        """MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin)
+           WHERE t.im_kalender = $ziel AND t.datum >= $heute
+           OPTIONAL MATCH (p:Person)-[:VERANTWORTLICH_FUER]->(a)
+           OPTIONAL MATCH (a)-[:BETRIFFT]->(b:Person)
+           RETURN t.id, a.name, a.beschreibung, t.datum, t.beginn, t.dauer_minuten, t.ort,
+                  t.kalender_stand, p.name, b.name""",
+        {"ziel": ziel, "heute": heute})
+    eintraege: dict[str, dict] = {}
+    while ergebnis.has_next():
+        tid, name, beschreibung, datum, beginn, dauer, ort, stand, person, betroffen = ergebnis.get_next()
+        eintrag = eintraege.setdefault(tid, {
+            "termin_id": tid, "aufgabe": name, "beschreibung": beschreibung or "",
+            "datum": datum.isoformat(), "beginn": beginn or "", "dauer_minuten": dauer or 0,
+            "ort": ort or "", "stand": stand or "", "personen": [], "betroffene": []})
+        # Die OPTIONAL MATCH erzeugen ein Kreuzprodukt -- jeden Namen nur einmal.
+        for name_, liste in ((person, "personen"), (betroffen, "betroffene")):
+            if name_ and name_ not in eintrag[liste]:
+                eintrag[liste].append(name_)
+    for eintrag in eintraege.values():
+        # Sortiert, sonst aendert sich der Fingerabdruck mit der Reihenfolge der Abfrage.
+        eintrag["personen"].sort()
+        eintrag["betroffene"].sort()
+    return eintraege
+
+
+def kalender_eintraege_abgleichen() -> dict:
+    """Bringt den Familienkalender auf den Stand von ontoFam -- nur kuenftige Termine,
+    nur eigene (markierte) Eintraege:
+
+      gewuenscht, nie eingetragen       -> anlegen. Gibt es schon einen markierten
+                                           Eintrag (etwa nach einem Absturz), wird er
+                                           uebernommen statt verdoppelt.
+      gewuenscht, in ontoFam geaendert  -> alten Eintrag loeschen, neuen anlegen
+      gewuenscht, unveraendert          -> nichts. Auch nicht, wenn der Eintrag fehlt:
+                                           dann hat ihn jemand im Kalender geloescht.
+      nicht mehr gewuenscht (Termin geloescht, verschoben, ausgetragen) -> loeschen
+    """
+    ha, ziel = _kalender_ziel()
+    if not ha or not ziel:
+        return {"aktiv": False}
+    heute = date.today()
+    ergebnis = {"aktiv": True, "kalender": ziel, "angelegt": 0, "ersetzt": 0,
+                "uebernommen": 0, "geloescht": 0, "fehler": []}
+    loeschbar: list[bool] = []
+
+    def loesche(uids: list[str]) -> None:
+        if not loeschbar:
+            loeschbar.append(kalender_schreiben.kann_loeschen(ha, ziel))
+        if not loeschbar[0]:
+            raise RuntimeError(f"{ziel} erlaubt Home Assistant kein Loeschen (Schreibzugriff "
+                               "in der Integration 'Google Calendar' pruefen)")
+        for uid in uids:
+            kalender_schreiben.loesche(ha, ziel, uid)
+
+    # Unter der Schreibsperre: sonst koennte ein Termin mitten im Abgleich verschwinden.
+    with _schreib_lock:
+        gewuenscht = _gewuenschte_eintraege(ziel, heute)
+        bis = max([date.fromisoformat(e["datum"]) for e in gewuenscht.values()]
+                  + [heute + KALENDER_FENSTER]) + timedelta(days=1)
+        try:
+            vorhanden = kalender_schreiben.eigene_eintraege(ha, ziel, heute, bis)
+        except Exception as fehler:
+            ergebnis["fehler"].append(kalender_schreiben.fehlertext(fehler))
+            return _kalender_ergebnis(ergebnis)
+
+        for termin_id, eintrag in gewuenscht.items():
+            felder = kalender_schreiben.ereignis(eintrag)
+            stand = kalender_schreiben.fingerabdruck(felder)
+            uids = vorhanden.get(termin_id, [])
+            try:
+                if uids[1:] and (eintrag["stand"] == stand or not eintrag["stand"]):
+                    loesche(uids[1:])  # doppelt eingetragen: einen behalten
+                if eintrag["stand"] == stand:
+                    continue
+                if not eintrag["stand"] and uids:
+                    ergebnis["uebernommen"] += 1
+                else:
+                    if uids:
+                        loesche(uids)
+                    kalender_schreiben.trage_ein(ha, ziel, felder)
+                    ergebnis["ersetzt" if eintrag["stand"] else "angelegt"] += 1
+                _conn.execute("MATCH (t:Termin {id: $id}) SET t.kalender_stand = $stand",
+                              {"id": termin_id, "stand": stand})
+            except Exception as fehler:
+                ergebnis["fehler"].append(
+                    f"{eintrag['aufgabe']} am {eintrag['datum']}: {kalender_schreiben.fehlertext(fehler)}")
+
+        for termin_id, uids in vorhanden.items():
+            if termin_id in gewuenscht:
+                continue
+            try:
+                loesche(uids)
+                ergebnis["geloescht"] += len(uids)
+            except Exception as fehler:
+                ergebnis["fehler"].append(
+                    f"Eintrag zu {termin_id} entfernen: {kalender_schreiben.fehlertext(fehler)}")
+    return _kalender_ergebnis(ergebnis)
+
+
+def _kalender_ergebnis(ergebnis: dict) -> dict:
+    _kalender_schreib_zustand.update({
+        "letzter_lauf": datetime.now(), "ergebnis": ergebnis,
+        "letzter_fehler": "; ".join(ergebnis["fehler"]) or None})
+    return ergebnis
+
+
+def _kalender_schreib_schleife() -> None:
+    """Nach jeder Aenderung und sonst alle 15 Minuten -- dann wird auch nachgeholt, was
+    scheiterte, weil Home Assistant oder Google gerade nicht erreichbar war."""
+    while True:
+        _kalender_wecker.wait(timeout=SYNC_INTERVALL.total_seconds())
+        # Eine KI legt Aufgabe, Termin und Zustaendigkeit in mehreren Anfragen an. Erst
+        # eintragen, wenn ein paar Sekunden Ruhe ist -- sonst wird der Eintrag gleich
+        # wieder ersetzt, weil die Zustaendigkeit nachkommt.
+        while True:
+            _kalender_wecker.clear()
+            if not _kalender_wecker.wait(timeout=3):
+                break
+        try:
+            ergebnis = kalender_eintraege_abgleichen()
+            if ergebnis.get("fehler") or any(ergebnis.get(k) for k in ("angelegt", "ersetzt", "geloescht")):
+                print(f"Familienkalender: {ergebnis}", flush=True)
+        except Exception as fehler:
+            _kalender_schreib_zustand["letzter_fehler"] = f"{type(fehler).__name__}: {fehler}"
+            print(f"Familienkalender: Fehler {type(fehler).__name__}: {fehler}", flush=True)
+
+
+def _kuenftige_termine(aufgabe_id: str, datum: str) -> list[dict]:
+    bedingung = "t.datum = date($datum) AND t.datum >= $heute" if datum else "t.datum >= $heute"
+    ergebnis = _conn.execute(
+        f"""MATCH (a:Aufgabe {{id: $id}})-[:AUFGABE_HAT_TERMIN]->(t:Termin) WHERE {bedingung}
+            RETURN t.id, t.datum, t.beginn, t.im_kalender ORDER BY t.datum, t.beginn""",
+        {"id": aufgabe_id, "heute": date.today(), **({"datum": datum} if datum else {})})
+    termine = []
+    while ergebnis.has_next():
+        tid, tag, beginn, im_kalender = ergebnis.get_next()
+        termine.append({"termin_id": tid, "datum": tag.isoformat(), "uhrzeit": beginn or "",
+                        "im_kalender": im_kalender or ""})
+    return termine
+
+
+def _kalender_auswahl(aufgabe_id: str, datum: str):
+    """Gemeinsamer Anfang von Ein- und Austragen: (ziel, name, termine) oder eine Fehlerantwort."""
+    ha, ziel = _kalender_ziel()
+    antwort = _kalender_nicht_eingerichtet(ha, ziel)
+    if antwort:
+        return antwort
+    grund = _nicht_fuer_kalender(aufgabe_id)
+    if grund:
+        return jsonify({"error": grund}), 404 if grund == "Aufgabe nicht gefunden." else 400
+    name = _conn.execute("MATCH (a:Aufgabe {id: $id}) RETURN a.name", {"id": aufgabe_id}).get_next()[0]
+    termine = _kuenftige_termine(aufgabe_id, datum)
+    if not termine:
+        wann = f"am {datum}" if datum else "ab heute"
+        return jsonify({"error": f"'{name}' hat keinen Termin {wann}."}), 400
+    return ziel, name, termine
+
+
+@app.post("/api/aufgaben/<aufgabe_id>/kalender")
+def in_kalender_eintragen(aufgabe_id: str):
+    """Kuenftige Termine einer Aufgabe in den Familienkalender eintragen.
+
+    Neue Termine kommen mit kalender_automatisch von selbst hinein; das hier ist fuer
+    aeltere Aufgaben. datum: nur dieser Termin. erneut=true: auch schon eingetragene
+    pruefen und fehlende Eintraege neu anlegen (z.B. wenn sie im Kalender geloescht wurden).
+    """
+    body = request.get_json(silent=True) or {}
+    auswahl = _kalender_auswahl(aufgabe_id, (body.get("datum") or "").strip())
+    if not isinstance(auswahl[0], str):
+        return auswahl
+    ziel, name, termine = auswahl
+    erneut = body.get("erneut") is True
+
+    eingeplant, schon_da = [], []
+    for termin in termine:
+        kurz = {"datum": termin["datum"], "uhrzeit": termin["uhrzeit"]}
+        if termin["im_kalender"] == ziel and not erneut:
+            schon_da.append(kurz)
+            continue
+        # Ohne Fingerabdruck legt der Abgleich an -- oder uebernimmt einen vorhandenen Eintrag.
+        _conn.execute("MATCH (t:Termin {id: $id}) SET t.im_kalender = $ziel, t.kalender_stand = ''",
+                      {"id": termin["termin_id"], "ziel": ziel})
+        eingeplant.append(kurz)
+
+    abgleich = kalender_eintraege_abgleichen() if eingeplant else None
+    antwort = {"aufgabe": name, "kalender": ziel, "eingetragen": eingeplant,
+               "schon_eingetragen": schon_da}
+    if abgleich and abgleich["fehler"]:
+        return jsonify({**antwort, "error": "; ".join(abgleich["fehler"])}), 502
+    return jsonify(antwort)
+
+
+@app.delete("/api/aufgaben/<aufgabe_id>/kalender")
+def aus_kalender_entfernen(aufgabe_id: str):
+    """Eintraege kuenftiger Termine wieder aus dem Familienkalender nehmen. Die Termine
+    bleiben in ontoFam. datum: nur dieser Termin."""
+    body = request.get_json(silent=True) or {}
+    auswahl = _kalender_auswahl(aufgabe_id, (body.get("datum") or "").strip())
+    if not isinstance(auswahl[0], str):
+        return auswahl
+    ziel, name, termine = auswahl
+
+    ausgetragen = []
+    for termin in termine:
+        if termin["im_kalender"]:
+            _conn.execute("MATCH (t:Termin {id: $id}) SET t.im_kalender = '', t.kalender_stand = ''",
+                          {"id": termin["termin_id"]})
+            ausgetragen.append({"datum": termin["datum"], "uhrzeit": termin["uhrzeit"]})
+    abgleich = kalender_eintraege_abgleichen() if ausgetragen else None
+    antwort = {"aufgabe": name, "kalender": ziel, "ausgetragen": ausgetragen}
+    if abgleich and abgleich["fehler"]:
+        return jsonify({**antwort, "error": "; ".join(abgleich["fehler"])}), 502
+    return jsonify(antwort)
+
+
 @app.post("/api/aufgaben")
 def create_aufgabe():
     body = request.get_json(force=True)
@@ -612,10 +896,11 @@ def create_aufgabe_termin():
     dauer = int(body.get("dauer_minuten") or 0)
 
     tid = new_id("t")
+    im_kalender = _automatisch_in(aufgabe_id)
     _conn.execute(
         """CREATE (:Termin {id: $id, datum: date($datum), ort: $ort,
-                            beginn: $beginn, dauer_minuten: $dauer})""",
-        {"id": tid, "datum": datum, "ort": ort, "beginn": beginn, "dauer": dauer},
+                            beginn: $beginn, dauer_minuten: $dauer, im_kalender: $kal})""",
+        {"id": tid, "datum": datum, "ort": ort, "beginn": beginn, "dauer": dauer, "kal": im_kalender},
     )
     _conn.execute(
         """
@@ -625,7 +910,8 @@ def create_aufgabe_termin():
         {"aid": aufgabe_id, "tid": tid},
     )
     return jsonify({"aufgabe_id": aufgabe_id, "termin_id": tid, "datum": datum,
-                    "ort": ort, "beginn": beginn, "dauer_minuten": dauer}), 201
+                    "ort": ort, "beginn": beginn, "dauer_minuten": dauer,
+                    "im_kalender": im_kalender}), 201
 
 
 @app.delete("/api/aufgabe-termine/<termin_id>")
@@ -1123,6 +1409,7 @@ def _vor_anfrage():
 def _nach_anfrage(_fehler):
     if g.pop("haelt_schreib_lock", False):
         _schreib_lock.release()
+        _kalender_wecker.set()
 
 
 @app.post("/api/kalender/sync")
@@ -1148,6 +1435,11 @@ def kalender_status():
         "letztes_ergebnis": _sync_zustand["ergebnis"],
         "abgleich_bei_abfrage_nach_sekunden": SYNC_BEI_ABFRAGE.total_seconds(),
         "hintergrund_intervall_minuten": SYNC_INTERVALL.total_seconds() / 60,
+        "eintragen": {
+            **_kalender_schreib_zustand,
+            "letzter_lauf": (_kalender_schreib_zustand["letzter_lauf"].isoformat(timespec="seconds")
+                             if _kalender_schreib_zustand["letzter_lauf"] else None),
+        },
     })
 
 
@@ -1569,6 +1861,7 @@ if __name__ == "__main__":
     # Daemon: der Thread endet mit dem Server, statt ihn am Beenden zu hindern.
     threading.Thread(target=_hintergrund_sync, daemon=True, name="kalender-sync").start()
     threading.Thread(target=_erinnerungs_schleife, daemon=True, name="erinnerungen").start()
+    threading.Thread(target=_kalender_schreib_schleife, daemon=True, name="familienkalender").start()
     def _beenden(*_):
         # Home Assistant stoppt das Add-on mit SIGTERM (auch vor jedem Backup). Vorher
         # das Write-Ahead-Log in die Datenbankdatei schreiben: dann ist kuzu_db allein

@@ -9,5 +9,7 @@
   "empfaenger": {
     "Max": "notify.mobile_app_NAME_VON_MAX_HANDY",
     "Anna": "notify.mobile_app_NAME_VON_ANNA_HANDY"
-  }
+  },
+  "kalender_schreiben": "calendar.familie",
+  "kalender_automatisch": true
 }

@@ -4,6 +4,17 @@ configuration:
     description: >-
       Google-Kalender, die ontoFam liest. Adresse aus Google Kalender → Einstellungen →
       Kalender → „Privatadresse im iCal-Format“. Der Name ist frei wählbar.
+  kalender_schreiben:
+    name: In diesen Kalender eintragen
+    description: >-
+      Kalender in Home Assistant, in den ontoFam Termine schreibt, z.B. calendar.familie.
+      Voraussetzung: Integration „Google Calendar“ mit Schreibzugriff, am besten mit
+      einem eigenen Google-Konto für ontoFam. Leer: ontoFam trägt nichts ein.
+  kalender_automatisch:
+    name: Neue Termine automatisch eintragen
+    description: >-
+      Aus: nur auf Wunsch („trag das in den Kalender ein“). Müll- und importierte
+      Termine kommen nie in den Kalender.
   zugriffsschluessel:
     name: Zugriffsschlüssel
     description: >-

@@ -98,14 +98,14 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 
 ## KI-Anbindung per MCP (Claude Desktop, Gemini CLI, Home Assistant)
 
-`mcp-server/mcp_server.py` stellt die Ontologie als 21 Tools bereit (u.a. `erinnerungen_vorschau`,
+`mcp-server/mcp_server.py` stellt die Ontologie als 23 Tools bereit (u.a. `erinnerungen_vorschau`,
 `erinnerung_testen`): `personen_auflisten`,
 `person_anlegen`, `aufgaben_auflisten`, `anstehende_aufgaben(tage, person)`,
 `aufgabe_anlegen(name, datum, person, betrifft, ort, uhrzeit, dauer_minuten, …)`,
 `zustaendigkeit_setzen`, `betroffene_person_setzen`, `als_erledigt_markieren`,
 `erledigung_zuruecksetzen`, `rueckblick(tage, person)`, `stundenplan_setzen`,
 `stundenplan_abfragen`, `stundenplan_eintragen`, `stundenplan_loeschen`,
-`tonnentermine_setzen(tonne, termine)`, `rueckmeldung_setzen(aufgabe, an)`, `kalender_synchronisieren`, `schema_beschreiben`,
+`tonnentermine_setzen(tonne, termine)`, `rueckmeldung_setzen(aufgabe, an)`, `in_kalender_eintragen(aufgabe, datum)`, `aus_kalender_entfernen`, `kalender_synchronisieren`, `schema_beschreiben`,
 `graph_abfragen(cypher)`.
 Damit funktioniert z.B. *"Max muss Lena am Dienstag den 22. September zum Hautarzt
 bringen"* → die KI legt Aufgabe + Termin an und ordnet Max zu; *"Was steht diese Woche
@@ -338,8 +338,36 @@ Notnagel, falls der Importstand kaputt ist: `POST /api/kalender/sync` mit
 `{"neu_aufbauen": true}` wirft alles weg und legt es neu an — dabei gehen manuelle
 Zuordnungen verloren.
 
-Der Kalender ist reine **Lesequelle**: Schreiben in den Google-Kalender bräuchte die
-Calendar-API mit OAuth (bewusst noch nicht umgesetzt).
+## In den Familienkalender eintragen (über Home Assistant)
+
+Neue Termine landen von selbst im Google-Kalender (Option `kalender_automatisch`, sonst
+nur auf Wunsch); ändert oder löscht man sie in ontoFam, zieht ontoFam den Eintrag nach.
+Werkzeuge `in_kalender_eintragen(aufgabe, datum)` für ältere Aufgaben und
+`aus_kalender_entfernen(aufgabe, datum)` bzw. `POST`/`DELETE /api/aufgaben/<id>/kalender`.
+Müll- und importierte Termine kommen nie hinein.
+
+- **ontoFam meldet sich nicht selbst bei Google an.** Das erledigt die Integration
+  „Google Calendar“ in Home Assistant — am besten mit einem eigenen Google-Konto für
+  ontoFam, dem der Familienkalender freigegeben ist. ontoFam legt über die Aktion
+  `calendar.create_event` an, findet seine Einträge über `GET /api/calendars/<kalender>`
+  und löscht über die Websocket-Schnittstelle (`calendar/event/delete`). Als App mit dem
+  Token, das Home Assistant ihr gibt; auf dem PC mit dem aus `erinnerungen.json`.
+- **Nur eigene Einträge.** Jeder trägt am Ende der Beschreibung
+  `ontoFam-Termin: <termin-id>`. Nur so markierte Einträge werden je gelöscht oder
+  ersetzt; alles andere im Familienkalender bleibt unberührt. Der ICS-Import überspringt
+  sie — die Aufgabe gibt es ja schon.
+- **Wunsch und Stand am Termin.** `Termin.im_kalender` sagt, in welchen Kalender er
+  gehört, `Termin.kalender_stand` ist der Fingerabdruck des zuletzt Eingetragenen. Ein
+  Abgleich im Hintergrund (nach jeder Änderung, wenn ein paar Sekunden Ruhe ist, sonst
+  alle 15 Minuten) bringt den Kalender auf diesen Stand: anlegen, bei Änderung in ontoFam
+  löschen und neu anlegen, nicht mehr Gewünschtes löschen. Ändern kann Home Assistant
+  einen Google-Eintrag nicht — daher ersetzen.
+- **Wer im Kalender etwas ändert, behält recht.** Ein dort verschobener oder gelöschter
+  Eintrag wird nicht zurückgedreht, solange sich der Termin in ontoFam nicht ändert.
+  `in_kalender_eintragen` mit `erneut: true` legt fehlende Einträge wieder an.
+- **Vergangenes bleibt, wie es ist.** Der Abgleich betrachtet nur Termine ab heute.
+- Was scheitert (Home Assistant oder Google nicht erreichbar), holt der nächste Lauf
+  nach; Stand und letzter Fehler unter `GET /api/kalender/status` → `eintragen`.
 
 ## Ausprobieren
 
@@ -380,8 +408,6 @@ Zeitraum der übergebenen Tage ab — Erledigungen an unveränderten Tagen bleib
 
 ## Geplante spätere Schritte
 
-- **Schreiben in den Google-Kalender** (Calendar-API + OAuth), damit KI-Einträge auch im
-  Kalender landen.
 - **GraphRAG weiter**: Längere Freitexte (Elternbriefe, Anleitungen) als `Dokument`
   mit Zerlegung in Abschnitte und Volltextsuche über die `fts`-Erweiterung (deutscher
   Stemmer), danach optional Embeddings über die `vector`-Erweiterung von Kùzu — beide

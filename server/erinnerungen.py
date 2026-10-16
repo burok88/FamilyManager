@@ -33,6 +33,10 @@ STANDARD = {
     "stunden_vorher": 2,
     "homeassistant": None,
     "empfaenger": {},
+    # Kalender in Home Assistant, in den ontoFam auf Wunsch eintraegt, z.B. calendar.familie
+    "kalender_schreiben": "",
+    # Neue Termine von selbst eintragen (sonst nur auf Wunsch)
+    "kalender_automatisch": True,
 }
 # Vorlaufzeit fuer Personen, die nicht zustaendig sind, aber trotzdem erinnert werden.
 STANDARD_VORLAUF = 1
@@ -177,7 +181,7 @@ def nachricht(gruppe: list[dict], jetzt: datetime) -> tuple[str, str]:
     return "ontoFam", "\n".join(zeilen)
 
 
-def _homeassistant(einstellungen: dict) -> dict | None:
+def homeassistant_zugang(einstellungen: dict) -> dict | None:
     ha = einstellungen.get("homeassistant") or {}
     # Als Add-on: Home Assistant gibt jedem Add-on mit homeassistant_api ein eigenes
     # Token und erreicht sich selbst ueber den Supervisor. Kein langlebiges Token noetig.
@@ -192,7 +196,7 @@ def _homeassistant(einstellungen: dict) -> dict | None:
 
 def kanal_fuer(person: str, einstellungen: dict) -> str:
     ziel = (einstellungen.get("empfaenger") or {}).get(person)
-    if ziel and _homeassistant(einstellungen):
+    if ziel and homeassistant_zugang(einstellungen):
         return f"homeassistant:{ziel.removeprefix('notify.')}"
     return "protokoll"
 
@@ -209,7 +213,7 @@ def sende(person: str, titel: str, text: str, einstellungen: dict) -> str:
     if kanal == "protokoll":
         print(f"[Erinnerung an {person}] {titel}: {text}".replace("\n", " | "), flush=True)
         return kanal
-    ha = _homeassistant(einstellungen)
+    ha = homeassistant_zugang(einstellungen)
     dienst = kanal.split(":", 1)[1]
     antwort = requests.post(
         f"{ha['url'].rstrip('/')}/api/services/notify/{dienst}",

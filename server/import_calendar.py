@@ -4,7 +4,9 @@ in die Ontologie: pro eindeutigem Kalender-Ereignis eine Aufgabe (kategorie
 
 Quellen stehen in calendar_sources.json (nicht in Git, siehe .example-Datei).
 
-Read-only: schreibt nichts in den Kalender zurück.
+Read-only: schreibt nichts in den Kalender zurück. Was ontoFam selbst eingetragen hat
+(kalender_schreiben.py), trägt eine Markierung und wird hier übersprungen -- es gehört
+schon zu einer Aufgabe.
 
 Ein erneuter Lauf *gleicht ab*, statt alles neu anzulegen: die Aufgaben-Knoten
 bleiben erhalten, solange es das Ereignis im Kalender noch gibt. Nur deshalb
@@ -28,6 +30,8 @@ import kuzu
 import recurring_ical_events
 import requests
 from icalendar import Calendar
+
+from kalender_schreiben import termin_aus_beschreibung
 
 BASE = Path(__file__).resolve().parent.parent  # Projektordner
 DB_PATH = BASE / "kuzu_db"
@@ -137,6 +141,7 @@ def lese_ereignisse(ics: bytes, jetzt: datetime | None = None) -> list[dict]:
             "beginn": beginn,
             "dauer_minuten": dauer,
             "ort": str(event.get("LOCATION", "") or "").strip(),
+            "ontofam_termin": termin_aus_beschreibung(beschreibung),
         })
     return result
 
@@ -329,8 +334,12 @@ def synchronisiere(conn: kuzu.Connection, quellen: list[tuple[str, list[dict]]],
     der Abruf ist vollstaendig, alles Fehlende gilt als geloescht.
     """
     gewuenscht: dict[str, dict] = {}
+    eigene = 0
     for quelle_name, events in quellen:
-        gewuenscht.update(_gruppiere(quelle_name, events))
+        # Von ontoFam selbst eingetragen: die Aufgabe gibt es schon, kein zweites Mal.
+        fremde = [ev for ev in events if not ev.get("ontofam_termin")]
+        eigene += len(events) - len(fremde)
+        gewuenscht.update(_gruppiere(quelle_name, fremde))
 
     vorhanden = {
         zeile[0]: (zeile[1], zeile[2])
@@ -389,6 +398,7 @@ def synchronisiere(conn: kuzu.Connection, quellen: list[tuple[str, list[dict]]],
         "termine": termine,
         "betroffene_neu_erkannt": betroffene,
         "verwaiste_termine_entfernt": verwaist,
+        "eigene_eintraege_uebersprungen": eigene,
         "manuelle_verknuepfungen_erhalten": _zaehle_manuelle_kanten(conn),
     }
 

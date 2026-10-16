@@ -72,7 +72,8 @@ Hinweise:
     RETURN p.name, count(e) AS anzahl ORDER BY anzahl DESC
   - Schulstunde: stunde = 0 heisst Betreuung o.ae. ohne Stundennummer. woche ist
     leer (jede Woche), 'A' oder 'B'. Faecher sind ausgeschrieben (Mathematik, nicht M).
-  - Importierte Kalendertermine tragen kategorie = 'Kalender-Import'."""
+  - Importierte Kalendertermine tragen kategorie = 'Kalender-Import'.
+  - Termin.im_kalender: in welchen Kalender der Termin gehoert (ontoFam traegt ihn dort ein), leer = in keinen."""
 
 
 def _ohne_text(cypher: str) -> str:

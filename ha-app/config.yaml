@@ -1,5 +1,5 @@
 name: ontoFam
-version: "0.11.0"
+version: "0.12.0"
 slug: ontofam
 url: https://github.com/burok88/FamilyManager
 # Fertiges Image aus der GitHub Container Registry (gebaut von
@@ -37,6 +37,8 @@ ports_description:
 
 options:
   kalender: []
+  kalender_schreiben: ""
+  kalender_automatisch: true
   zugriffsschluessel: ""
   empfaenger: []
   abend: "19:00"
@@ -48,6 +50,8 @@ schema:
   kalender:
     - name: str
       url: password
+  kalender_schreiben: str?
+  kalender_automatisch: bool
   zugriffsschluessel: password?
   empfaenger:
     - person: str

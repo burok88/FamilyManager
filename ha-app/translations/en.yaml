@@ -4,6 +4,17 @@ configuration:
     description: >-
       Google calendars ontoFam reads. Address from Google Calendar → Settings →
       calendar → "Secret address in iCal format". The name is up to you.
+  kalender_schreiben:
+    name: Add appointments to this calendar
+    description: >-
+      Calendar in Home Assistant that ontoFam writes appointments to, e.g.
+      calendar.familie. Requires the "Google Calendar" integration with write access,
+      ideally with a separate Google account for ontoFam. Empty: ontoFam writes nothing.
+  kalender_automatisch:
+    name: Add new appointments automatically
+    description: >-
+      Off: only on request ("put that in the calendar"). Waste collection and imported
+      appointments never go into the calendar.
   zugriffsschluessel:
     name: Access key
     description: >-

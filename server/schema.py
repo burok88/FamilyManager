@@ -122,6 +122,11 @@ SPALTEN = [
     # tut das kaum jemand -- dort waere jeder Termin danach "verpasst". Aus: kein
     # offen/verpasst, Erinnerungen kommen trotzdem.
     "ALTER TABLE Aufgabe ADD IF NOT EXISTS rueckmeldung BOOLEAN DEFAULT true",
+    # In welchen Kalender der Termin gehoert (Entitaet in Home Assistant), leer = in keinen.
+    "ALTER TABLE Termin ADD IF NOT EXISTS im_kalender STRING DEFAULT ''",
+    # Fingerabdruck dessen, was zuletzt eingetragen wurde. Weicht der aktuelle Stand ab,
+    # hat sich der Termin in ontoFam geaendert und der Eintrag wird ersetzt.
+    "ALTER TABLE Termin ADD IF NOT EXISTS kalender_stand STRING DEFAULT ''",
 ]
 
 # Einmalige Nacharbeit, wenn eine Spalte neu dazukommt -- fuer Bestandsdaten, bei denen

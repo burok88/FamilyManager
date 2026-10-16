@@ -69,8 +69,13 @@ def main() -> None:
         "morgen": optionen["morgen"],
         "stunden_vorher": optionen["stunden_vorher"],
         "empfaenger": empfaenger,
+        "kalender_schreiben": (optionen.get("kalender_schreiben") or "").strip(),
+        "kalender_automatisch": optionen.get("kalender_automatisch", True),
     }, ensure_ascii=False), encoding="utf-8")
     print(f"Erinnerungen per Home Assistant an: {', '.join(empfaenger) or 'niemanden (nur Protokoll)'}")
+    ziel = optionen.get("kalender_schreiben") or ""
+    wie = "neue automatisch" if optionen.get("kalender_automatisch", True) else "nur auf Wunsch"
+    print(f"Termine eintragen in: {f'{ziel} ({wie})' if ziel else 'keinen Kalender'}")
 
     schluessel = optionen.get("zugriffsschluessel") or ""
     if not schluessel:
