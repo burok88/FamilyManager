@@ -423,12 +423,42 @@ def _kalender_ziel(einstellungen: dict | None = None) -> tuple[dict | None, str]
     return homeassistant_zugang(einstellungen), (einstellungen.get("kalender_schreiben") or "").strip()
 
 
+# Welche Kalender Home Assistant kennt, kurz zwischengespeichert: nicht jeder neue Termin
+# soll dafuer bei Home Assistant nachfragen.
+_bekannte_kalender: dict = {"zeit": None, "liste": []}
+KALENDER_LISTE_GUELTIG = timedelta(minutes=5)
+
+
+def _kalender_in_ha(ha: dict, frisch: bool = False) -> list[dict]:
+    """Wirft, wenn Home Assistant nicht antwortet."""
+    jetzt = datetime.now()
+    if frisch or not _bekannte_kalender["zeit"] or jetzt - _bekannte_kalender["zeit"] > KALENDER_LISTE_GUELTIG:
+        _bekannte_kalender.update(zeit=jetzt, liste=kalender_schreiben.kalender_liste(ha))
+    return _bekannte_kalender["liste"]
+
+
+def _unbekannter_kalender(ha: dict, ziel: str, frisch: bool = False) -> str | None:
+    """Meldung, wenn es den Kalender in Home Assistant nicht gibt (z.B. vertippt).
+    None, wenn es ihn gibt -- oder Home Assistant gerade nicht antwortet: dann zeigt der
+    naechste Abgleich, was los ist."""
+    try:
+        liste = _kalender_in_ha(ha, frisch)
+    except Exception:
+        return None
+    if any(k["entity_id"] == ziel for k in liste):
+        return None
+    vorhanden = ", ".join(f"{k['entity_id']} ({k['name']})" for k in liste) or "keine"
+    return (f"Kalender '{ziel}' gibt es in Home Assistant nicht (Option 'kalender_schreiben'). "
+            f"Vorhanden: {vorhanden}")
+
+
 def _kalender_nicht_eingerichtet(ha: dict | None, ziel: str):
     """Antwort mit Hinweis, was fehlt -- oder None, wenn alles da ist."""
     if not ha:
         return jsonify({"error": "Keine Verbindung zu Home Assistant eingerichtet."}), 400
     if ziel:
-        return None
+        grund = _unbekannter_kalender(ha, ziel, frisch=True)
+        return (jsonify({"error": grund}), 400) if grund else None
     try:
         vorhanden = ", ".join(f"{k['entity_id']} ({k['name']})"
                               for k in kalender_schreiben.kalender_liste(ha)) or "keine"
@@ -460,7 +490,10 @@ def _automatisch_in(aufgabe_id: str) -> str:
     ha, ziel = _kalender_ziel(einstellungen)
     if not (ha and ziel and einstellungen.get("kalender_automatisch")):
         return ""
-    return "" if _nicht_fuer_kalender(aufgabe_id) else ziel
+    # Vertippter Kalender: nicht vormerken -- der Abgleich meldet den Fehler.
+    if _nicht_fuer_kalender(aufgabe_id) or _unbekannter_kalender(ha, ziel):
+        return ""
+    return ziel
 
 
 def _gewuenschte_eintraege(ziel: str, heute: date) -> dict[str, dict]:
@@ -507,7 +540,16 @@ def kalender_eintraege_abgleichen() -> dict:
         return {"aktiv": False}
     heute = date.today()
     ergebnis = {"aktiv": True, "kalender": ziel, "angelegt": 0, "ersetzt": 0,
-                "uebernommen": 0, "geloescht": 0, "fehler": []}
+                "uebernommen": 0, "geloescht": 0, "umgehaengt": 0, "fehler": []}
+    try:
+        bekannt = {k["entity_id"] for k in _kalender_in_ha(ha, frisch=True)}
+    except Exception as fehler:
+        ergebnis["fehler"].append(kalender_schreiben.fehlertext(fehler))
+        return _kalender_ergebnis(ergebnis)
+    grund = _unbekannter_kalender(ha, ziel)
+    if grund:
+        ergebnis["fehler"].append(grund)
+        return _kalender_ergebnis(ergebnis)
     loeschbar: list[bool] = []
 
     def loesche(uids: list[str]) -> None:
@@ -521,6 +563,7 @@ def kalender_eintraege_abgleichen() -> dict:
 
     # Unter der Schreibsperre: sonst koennte ein Termin mitten im Abgleich verschwinden.
     with _schreib_lock:
+        ergebnis["umgehaengt"] = _vormerkungen_umhaengen(ziel, bekannt, heute)
         gewuenscht = _gewuenschte_eintraege(ziel, heute)
         bis = max([date.fromisoformat(e["datum"]) for e in gewuenscht.values()]
                   + [heute + KALENDER_FENSTER]) + timedelta(days=1)
@@ -564,6 +607,26 @@ def kalender_eintraege_abgleichen() -> dict:
     return _kalender_ergebnis(ergebnis)
 
 
+def _vormerkungen_umhaengen(ziel: str, bekannt: set[str], heute: date) -> int:
+    """Kuenftige Termine, die fuer einen Kalender vorgemerkt sind, den Home Assistant nicht
+    kennt (vertippt, Integration entfernt), gehoeren in den richtigen. Vorgemerkte fuer einen
+    anderen vorhandenen Kalender bleiben, wo sie sind. bekannt muss frisch von Home
+    Assistant stammen -- eine leere Liste nach einem Fehler wuerde alles umhaengen."""
+    ergebnis = _conn.execute(
+        """MATCH (:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin)
+           WHERE t.im_kalender <> '' AND t.im_kalender <> $ziel AND t.datum >= $heute
+           RETURN t.id, t.im_kalender""", {"ziel": ziel, "heute": heute})
+    verwaist = []
+    while ergebnis.has_next():
+        termin_id, alt = ergebnis.get_next()
+        if alt not in bekannt:
+            verwaist.append(termin_id)
+    for termin_id in verwaist:
+        _conn.execute("MATCH (t:Termin {id: $id}) SET t.im_kalender = $ziel, t.kalender_stand = ''",
+                      {"id": termin_id, "ziel": ziel})
+    return len(verwaist)
+
+
 def _kalender_ergebnis(ergebnis: dict) -> dict:
     _kalender_schreib_zustand.update({
         "letzter_lauf": datetime.now(), "ergebnis": ergebnis,
@@ -585,7 +648,7 @@ def _kalender_schreib_schleife() -> None:
                 break
         try:
             ergebnis = kalender_eintraege_abgleichen()
-            if ergebnis.get("fehler") or any(ergebnis.get(k) for k in ("angelegt", "ersetzt", "geloescht")):
+            if ergebnis.get("fehler") or any(ergebnis.get(k) for k in ("angelegt", "ersetzt", "geloescht", "umgehaengt")):
                 print(f"Familienkalender: {ergebnis}", flush=True)
         except Exception as fehler:
             _kalender_schreib_zustand["letzter_fehler"] = f"{type(fehler).__name__}: {fehler}"

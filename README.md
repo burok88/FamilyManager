@@ -368,6 +368,10 @@ Müll- und importierte Termine kommen nie hinein.
 - **Vergangenes bleibt, wie es ist.** Der Abgleich betrachtet nur Termine ab heute.
 - Was scheitert (Home Assistant oder Google nicht erreichbar), holt der nächste Lauf
   nach; Stand und letzter Fehler unter `GET /api/kalender/status` → `eintragen`.
+- **Vertippter Kalendername** (`calender.familie`): Der Abgleich meldet, dass es ihn nicht
+  gibt, und nennt die vorhandenen. Neue Termine werden solange nicht vorgemerkt; schon
+  für einen unbekannten Kalender vorgemerkte gehen nach der Korrektur von selbst an den
+  richtigen.
 
 ## Ausprobieren
 

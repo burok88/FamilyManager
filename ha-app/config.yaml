@@ -1,5 +1,5 @@
 name: ontoFam
-version: "0.12.0"
+version: "0.12.1"
 slug: ontofam
 url: https://github.com/burok88/FamilyManager
 # Fertiges Image aus der GitHub Container Registry (gebaut von
