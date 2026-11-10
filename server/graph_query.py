@@ -73,6 +73,8 @@ Hinweise:
   - Schulstunde: stunde = 0 heisst Betreuung o.ae. ohne Stundennummer. woche ist
     leer (jede Woche), 'A' oder 'B'. Faecher sind ausgeschrieben (Mathematik, nicht M).
   - Importierte Kalendertermine tragen kategorie = 'Kalender-Import'.
+  - Termin.bis_datum: letzter Tag eines mehrtaegigen Termins, NULL = eintaegig. Was an
+    einem Tag laeuft: WHERE t.datum <= date('...') AND coalesce(t.bis_datum, t.datum) >= date('...')
   - Termin.im_kalender: in welchen Kalender der Termin gehoert (ontoFam traegt ihn dort ein), leer = in keinen."""
 
 

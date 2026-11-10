@@ -44,10 +44,16 @@ def termin_aus_beschreibung(text: str) -> str | None:
 def ereignis(eintrag: dict) -> dict:
     """Felder fuer calendar.create_event aus einem Termin samt Aufgabe.
 
-    eintrag: aufgabe, termin_id, datum (ISO), beginn ("HH:MM" oder leer), dauer_minuten,
-    ort, beschreibung, personen (zustaendig), betroffene.
+    eintrag: aufgabe, termin_id, datum (ISO), bis_datum (ISO oder leer), beginn ("HH:MM"
+    oder leer), dauer_minuten, ort, beschreibung, personen (zustaendig), betroffene.
+
+    Mehrtaegig wird ganztaegig ueber den ganzen Zeitraum eingetragen; eine Uhrzeit steht
+    dann in der Beschreibung ("Beginn: 10:00").
     """
+    mehrtaegig = bool(eintrag.get("bis_datum")) and eintrag["bis_datum"] > eintrag["datum"]
     zeilen = [eintrag.get("beschreibung") or ""]
+    if mehrtaegig and eintrag.get("beginn"):
+        zeilen.append(f"Beginn: {eintrag['beginn']}")
     if eintrag.get("personen"):
         zeilen.append("Zuständig: " + ", ".join(eintrag["personen"]))
     if eintrag.get("betroffene"):
@@ -59,7 +65,10 @@ def ereignis(eintrag: dict) -> dict:
     if eintrag.get("ort"):
         felder["location"] = eintrag["ort"]
     tag = date.fromisoformat(eintrag["datum"])
-    if eintrag.get("beginn"):
+    if mehrtaegig:
+        felder["start_date"] = tag.isoformat()
+        felder["end_date"] = (date.fromisoformat(eintrag["bis_datum"]) + timedelta(days=1)).isoformat()
+    elif eintrag.get("beginn"):
         # Ohne Zeitzone: Home Assistant nimmt seine eigene, also die des Haushalts.
         beginn = datetime.combine(tag, datetime.strptime(eintrag["beginn"], "%H:%M").time())
         ende = beginn + timedelta(minutes=eintrag.get("dauer_minuten") or STANDARD_DAUER_MINUTEN)

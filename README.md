@@ -118,6 +118,13 @@ Verschiebt sich ein Termin, ändert `termin_verschieben` den bestehenden
 (`PUT /api/aufgabe-termine/<id>`) — so bleibt es eine Aufgabe, und der Kalendereintrag
 wird ersetzt. Termine aus dem Google-Kalender werden dort verschoben und gelöscht.
 
+**Mehrtägige Termine** („vom 24. bis 31.12.“) tragen `bis_datum` (letzter Tag,
+einschließlich; leer = eintägig). Sie erscheinen in „Was steht an?“ an jedem Tag des
+Zeitraums und gelten bis zum letzten Tag als offen. Im Familienkalender stehen sie
+ganztägig über den ganzen Zeitraum, eine Uhrzeit als „Beginn: …“ in der Beschreibung.
+Beim Verschieben des ersten Tags wandert das Ende mit. Mehrtägige Google-Termine
+(Urlaub) bekommen ihr Ende beim Import.
+
 - **Claude Desktop**: `python mcp-server/build_mcpb.py` baut `dist/ontofam.mcpb`; installiert wird
   es über Einstellungen → Erweiterungen → Erweiterte Einstellungen → "Erweiterung
   installieren". Der Weg über `claude_desktop_config.json` funktioniert in aktuellen

@@ -22,7 +22,7 @@ MANIFEST = {
     "manifest_version": "0.2",
     "name": "ontofam",
     "display_name": "ontoFam – Haushalts-Ontologie",
-    "version": "0.13.1",
+    "version": "0.14.0",
     "description": "Personen, Aufgaben und Termine der Familie abfragen und anlegen.",
     "long_description": (
         "Stellt die Haushalts-Ontologie (Kuzu-Graph hinter app.py) als Tools bereit: "

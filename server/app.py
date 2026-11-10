@@ -406,10 +406,12 @@ def _aufgaben_details(nach_id: dict[str, dict]) -> None:
         while ergebnis.has_next():
             yield ergebnis.get_next()
 
-    for aid, tid, datum, beginn, im_kalender in zeilen(
+    for aid, tid, datum, bis_datum, beginn, im_kalender in zeilen(
             """MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin)
-               RETURN a.id, t.id, t.datum, t.beginn, t.im_kalender ORDER BY t.datum, t.beginn"""):
+               RETURN a.id, t.id, t.datum, t.bis_datum, t.beginn, t.im_kalender
+               ORDER BY t.datum, t.beginn"""):
         nach_id[aid]["termine"].append({"termin_id": tid, "datum": datum.isoformat(),
+                                        "bis_datum": bis_datum.isoformat() if bis_datum else "",
                                         "uhrzeit": beginn or "", "im_kalender": bool(im_kalender)})
     for aid, person in zeilen("MATCH (p:Person)-[:VERANTWORTLICH_FUER]->(a:Aufgabe) RETURN a.id, p.name ORDER BY p.name"):
         nach_id[aid]["zustaendig"].append(person)
@@ -534,15 +536,17 @@ def _gewuenschte_eintraege(ziel: str, heute: date) -> dict[str, dict]:
            WHERE t.im_kalender = $ziel AND t.datum >= $heute
            OPTIONAL MATCH (p:Person)-[:VERANTWORTLICH_FUER]->(a)
            OPTIONAL MATCH (a)-[:BETRIFFT]->(b:Person)
-           RETURN t.id, a.name, a.beschreibung, t.datum, t.beginn, t.dauer_minuten, t.ort,
-                  t.kalender_stand, p.name, b.name""",
+           RETURN t.id, a.name, a.beschreibung, t.datum, t.bis_datum, t.beginn, t.dauer_minuten,
+                  t.ort, t.kalender_stand, p.name, b.name""",
         {"ziel": ziel, "heute": heute})
     eintraege: dict[str, dict] = {}
     while ergebnis.has_next():
-        tid, name, beschreibung, datum, beginn, dauer, ort, stand, person, betroffen = ergebnis.get_next()
+        tid, name, beschreibung, datum, bis_datum, beginn, dauer, ort, stand, person, betroffen = \
+            ergebnis.get_next()
         eintrag = eintraege.setdefault(tid, {
             "termin_id": tid, "aufgabe": name, "beschreibung": beschreibung or "",
-            "datum": datum.isoformat(), "beginn": beginn or "", "dauer_minuten": dauer or 0,
+            "datum": datum.isoformat(), "bis_datum": bis_datum.isoformat() if bis_datum else "",
+            "beginn": beginn or "", "dauer_minuten": dauer or 0,
             "ort": ort or "", "stand": stand or "", "personen": [], "betroffene": []})
         # Die OPTIONAL MATCH erzeugen ein Kreuzprodukt -- jeden Namen nur einmal.
         for name_, liste in ((person, "personen"), (betroffen, "betroffene")):
@@ -958,21 +962,39 @@ def _pruefe_uhrzeit(wert: str) -> str:
         raise ValueError(f"Uhrzeit '{wert}' nicht lesbar, erwartet wird HH:MM (z.B. 14:30).")
 
 
+# Leeres bis_datum (eintaegig) als NULL speichern, sonst als Datum.
+_BIS_DATUM = "CASE WHEN $bis = '' THEN NULL ELSE date($bis) END"
+
+
+def _pruefe_bis_datum(datum: str, bis_datum) -> str:
+    """'' fuer eintaegig. Ein bis_datum gleich dem Starttag ist ebenfalls eintaegig."""
+    bis = str(bis_datum or "").strip()
+    if not bis:
+        return ""
+    try:
+        bis = date.fromisoformat(bis).isoformat()
+    except ValueError:
+        raise ValueError(f"bis_datum '{bis}' nicht lesbar, erwartet wird JJJJ-MM-TT.")
+    if bis < datum:
+        raise ValueError(f"bis_datum {bis} liegt vor dem ersten Tag {datum}.")
+    return "" if bis == datum else bis
+
+
 @app.get("/api/aufgabe-termine")
 def list_aufgabe_termine():
     result = _conn.execute(
         """
         MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin)
-        RETURN a.id, a.name, t.id, t.datum, t.ort, t.beginn, t.dauer_minuten
+        RETURN a.id, a.name, t.id, t.datum, t.bis_datum, t.ort, t.beginn, t.dauer_minuten
         ORDER BY t.datum, t.beginn
         """
     )
     items = []
     while result.has_next():
-        aid, aname, tid, datum, ort, beginn, dauer = result.get_next()
+        aid, aname, tid, datum, bis_datum, ort, beginn, dauer = result.get_next()
         items.append({"aufgabe_id": aid, "aufgabe": aname, "termin_id": tid,
-                      "datum": str(datum), "ort": ort, "beginn": beginn,
-                      "dauer_minuten": dauer})
+                      "datum": str(datum), "bis_datum": str(bis_datum) if bis_datum else "",
+                      "ort": ort, "beginn": beginn, "dauer_minuten": dauer})
     return jsonify(items)
 
 
@@ -989,13 +1011,18 @@ def create_aufgabe_termin():
     except ValueError as fehler:
         return jsonify({"error": str(fehler)}), 400
     dauer = int(body.get("dauer_minuten") or 0)
+    try:
+        bis_datum = _pruefe_bis_datum(datum, body.get("bis_datum"))
+    except ValueError as fehler:
+        return jsonify({"error": str(fehler)}), 400
 
     tid = new_id("t")
     im_kalender = _automatisch_in(aufgabe_id)
     _conn.execute(
-        """CREATE (:Termin {id: $id, datum: date($datum), ort: $ort,
-                            beginn: $beginn, dauer_minuten: $dauer, im_kalender: $kal})""",
-        {"id": tid, "datum": datum, "ort": ort, "beginn": beginn, "dauer": dauer, "kal": im_kalender},
+        f"""CREATE (:Termin {{id: $id, datum: date($datum), bis_datum: {_BIS_DATUM}, ort: $ort,
+                             beginn: $beginn, dauer_minuten: $dauer, im_kalender: $kal}})""",
+        {"id": tid, "datum": datum, "bis": bis_datum, "ort": ort, "beginn": beginn, "dauer": dauer,
+         "kal": im_kalender},
     )
     _conn.execute(
         """
@@ -1005,31 +1032,39 @@ def create_aufgabe_termin():
         {"aid": aufgabe_id, "tid": tid},
     )
     return jsonify({"aufgabe_id": aufgabe_id, "termin_id": tid, "datum": datum,
-                    "ort": ort, "beginn": beginn, "dauer_minuten": dauer,
+                    "bis_datum": bis_datum, "ort": ort, "beginn": beginn, "dauer_minuten": dauer,
                     "im_kalender": im_kalender}), 201
 
 
 @app.put("/api/aufgabe-termine/<termin_id>")
 def update_aufgabe_termin(termin_id: str):
-    """Termin verschieben oder aendern: datum, beginn ('' = ganztaegig), dauer_minuten,
-    ort. Fehlende Felder bleiben, wie sie sind. Der Termin behaelt seine ID -- daran
+    """Termin verschieben oder aendern: datum, bis_datum ('' = eintaegig), beginn
+    ('' = ganztaegig), dauer_minuten, ort. Fehlende Felder bleiben, wie sie sind.
+    Verschiebt sich nur der erste Tag, wandert ein bis_datum mit, die Laenge bleibt. Der Termin behaelt seine ID -- daran
     haengen Erledigungen und der Kalendereintrag, den der Abgleich danach ersetzt."""
     body = request.get_json(force=True) or {}
     zeile = _conn.execute(
         """MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin {id: $id})
-           RETURN a.name, a.kategorie, t.datum, t.beginn, t.dauer_minuten, t.ort""",
+           RETURN a.name, a.kategorie, t.datum, t.bis_datum, t.beginn, t.dauer_minuten, t.ort""",
         {"id": termin_id})
     if not zeile.has_next():
         return jsonify({"error": "Termin nicht gefunden."}), 404
-    name, kategorie, datum, beginn, dauer, ort = zeile.get_next()
+    name, kategorie, datum, bis_datum, beginn, dauer, ort = zeile.get_next()
     if kategorie == IMPORT_KATEGORIE:
         # Der naechste Abgleich wuerde es zuruecksetzen -- die Quelle ist der Kalender.
         return jsonify({"error": f"'{name}' stammt aus dem Google-Kalender. Bitte dort verschieben."}), 400
 
-    neu = {"datum": datum.isoformat(), "beginn": beginn or "", "dauer_minuten": dauer or 0, "ort": ort or ""}
+    neu = {"datum": datum.isoformat(), "bis_datum": bis_datum.isoformat() if bis_datum else "",
+           "beginn": beginn or "", "dauer_minuten": dauer or 0, "ort": ort or ""}
     try:
         if "datum" in body:
             neu["datum"] = date.fromisoformat(str(body["datum"]).strip()).isoformat()
+            if bis_datum and "bis_datum" not in body:
+                # "Die Woche bei Oma ist eine Woche frueher": die Dauer bleibt.
+                neu["bis_datum"] = (bis_datum + (date.fromisoformat(neu["datum"]) - datum)).isoformat()
+        if "bis_datum" in body:
+            neu["bis_datum"] = body["bis_datum"] or ""
+        neu["bis_datum"] = _pruefe_bis_datum(neu["datum"], neu["bis_datum"])
         if "beginn" in body:
             neu["beginn"] = _pruefe_uhrzeit(str(body["beginn"] or "").strip())
         if "dauer_minuten" in body:
@@ -1040,12 +1075,14 @@ def update_aufgabe_termin(termin_id: str):
         neu["ort"] = str(body["ort"] or "").strip()
 
     _conn.execute(
-        """MATCH (t:Termin {id: $id})
-           SET t.datum = date($datum), t.beginn = $beginn, t.dauer_minuten = $dauer, t.ort = $ort""",
-        {"id": termin_id, "datum": neu["datum"], "beginn": neu["beginn"],
+        f"""MATCH (t:Termin {{id: $id}})
+            SET t.datum = date($datum), t.bis_datum = {_BIS_DATUM}, t.beginn = $beginn,
+                t.dauer_minuten = $dauer, t.ort = $ort""",
+        {"id": termin_id, "datum": neu["datum"], "bis": neu["bis_datum"], "beginn": neu["beginn"],
          "dauer": neu["dauer_minuten"], "ort": neu["ort"]})
     return jsonify({"termin_id": termin_id, "aufgabe": name, **neu,
-                    "vorher": {"datum": datum.isoformat(), "beginn": beginn or ""}})
+                    "vorher": {"datum": datum.isoformat(), "bis_datum": bis_datum.isoformat() if bis_datum else "",
+                               "beginn": beginn or ""}})
 
 
 @app.delete("/api/aufgabe-termine/<termin_id>")
@@ -1582,15 +1619,17 @@ def kalender_status():
 # Fenster in Tagen -- das ist die natuerliche Frage einer KI ("was ist diese Woche?").
 
 # Die Datumsgrenze steht in der Abfrage, nicht erst in Python: sonst liest jede Frage
-# alle Termine aller Jahre.
+# alle Termine aller Jahre. Ein mehrtaegiger Termin zaehlt, solange er ins Fenster ragt --
+# "was steht diese Woche an?" am 27.12. soll die Woche bei Oma (24.-31.12.) zeigen.
 _TERMIN_ZUSATZ = """
-    WHERE t.datum >= $von AND t.datum <= $bis
+    WHERE t.datum <= $bis AND coalesce(t.bis_datum, t.datum) >= $von
     OPTIONAL MATCH (p:Person)-[v:VERANTWORTLICH_FUER]->(a)
     OPTIONAL MATCH (a)-[:BETRIFFT]->(b:Person)
     OPTIONAL MATCH (a)<-[:ERLEDIGUNG_ZU_AUFGABE]-(e:Erledigung)-[:ERLEDIGUNG_ZU_TERMIN]->(t)
     OPTIONAL MATCH (e)-[:ERLEDIGT_DURCH]->(d:Person)
     RETURN a.id AS aufgabe_id, t.id AS termin_id, a.name AS aufgabe, a.kategorie AS kategorie,
-           t.datum AS datum, t.ort AS ort, t.beginn AS beginn, t.dauer_minuten AS dauer_minuten,
+           t.datum AS datum, t.bis_datum AS bis_datum, t.ort AS ort, t.beginn AS beginn,
+           t.dauer_minuten AS dauer_minuten,
            p.name AS verantwortlich, v.vorlaufzeit_tage AS vorlauf,
            b.name AS betroffen, {kontext} AS kontext,
            e.status AS status, d.name AS erledigt_von, a.rueckmeldung AS rueckmeldung
@@ -1636,13 +1675,15 @@ def _termine_im_zeitraum(von: date, bis: date, person: str = "") -> list[dict]:
                     "termin_id": zeile["termin_id"],
                     "kategorie": zeile["kategorie"],
                     "datum": zeile["datum"].isoformat(),
+                    "bis_datum": zeile["bis_datum"].isoformat() if zeile["bis_datum"] else "",
                     "tage_bis": (zeile["datum"] - heute).days,
                     "ort": zeile["ort"] or "",
                     "beginn": zeile["beginn"] or "",
                     "dauer_minuten": zeile["dauer_minuten"] or 0,
                     "kontext": zeile["kontext"],
+                    # Mehrtaegig: offen bis zum letzten Tag, nicht schon ab dem zweiten verpasst.
                     "status": zeile["status"] or _abgeleiteter_status(
-                        zeile["datum"], heute, zeile["rueckmeldung"]),
+                        zeile["bis_datum"] or zeile["datum"], heute, zeile["rueckmeldung"]),
                     "erledigt_von": zeile["erledigt_von"],
                     "personen": [],
                     "vorlauf": {},

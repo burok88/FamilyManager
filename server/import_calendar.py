@@ -129,9 +129,20 @@ def lese_ereignisse(ics: bytes, jetzt: datetime | None = None) -> list[dict]:
         beginn = dtstart.strftime("%H:%M") if mit_uhrzeit else ""
 
         dauer = 0
+        bis_datum = None
         dtend = event.get("DTEND")
         if mit_uhrzeit and dtend is not None and hasattr(dtend.dt, "hour"):
-            dauer = max(0, int((_ortszeit(dtend.dt) - dtstart).total_seconds() // 60))
+            ende = _ortszeit(dtend.dt)
+            dauer = max(0, int((ende - dtstart).total_seconds() // 60))
+            # Endet nach Mitternacht -- als mehrtaegig nur, wenn es nicht bloss in die
+            # Nacht hineinreicht (Feier bis 01:00).
+            if ende.date() > datum and (ende - dtstart) >= timedelta(hours=24):
+                bis_datum = ende.date()
+        elif not mit_uhrzeit and dtend is not None and not hasattr(dtend.dt, "hour"):
+            # Ganztaegig: DTEND ist der Tag NACH dem letzten.
+            letzter = dtend.dt - timedelta(days=1)
+            if letzter > datum:
+                bis_datum = letzter
 
         result.append({
             "uid": uid,
@@ -141,6 +152,7 @@ def lese_ereignisse(ics: bytes, jetzt: datetime | None = None) -> list[dict]:
             "beginn": beginn,
             "dauer_minuten": dauer,
             "ort": str(event.get("LOCATION", "") or "").strip(),
+            "bis_datum": bis_datum,
             "ontofam_termin": termin_aus_beschreibung(beschreibung),
         })
     return result
@@ -220,6 +232,14 @@ def _gruppiere(quelle_name: str, events: list[dict]) -> dict[str, dict]:
     return nach_id
 
 
+# Leer (eintaegig) als NULL, sonst als Datum -- wie in app.py.
+_BIS_DATUM = "CASE WHEN $bis = '' THEN NULL ELSE date($bis) END"
+
+
+def _bis(ev: dict) -> str:
+    return ev["bis_datum"].isoformat() if ev.get("bis_datum") else ""
+
+
 def _im_zeitraum(datum, zeitraum: tuple[date, date] | None) -> bool:
     return zeitraum is None or zeitraum[0] <= datum <= zeitraum[1]
 
@@ -256,16 +276,17 @@ def _gleiche_termine_ab(conn: kuzu.Connection, aufgabe_id: str, vorkommen: list[
 
     for termin_id, ev in gewuenscht.items():
         if termin_id in vorhanden:
-            # Datum und Uhrzeit stecken in der ID; nachziehen koennen sich nur Ort und Dauer.
+            # Datum und Uhrzeit stecken in der ID; nachziehen koennen sich Ort, Dauer und Ende.
             conn.execute(
-                "MATCH (t:Termin {id: $id}) SET t.ort = $ort, t.dauer_minuten = $dauer",
-                {"id": termin_id, "ort": ev["ort"], "dauer": ev["dauer_minuten"]},
+                f"""MATCH (t:Termin {{id: $id}})
+                    SET t.ort = $ort, t.dauer_minuten = $dauer, t.bis_datum = {_BIS_DATUM}""",
+                {"id": termin_id, "ort": ev["ort"], "dauer": ev["dauer_minuten"], "bis": _bis(ev)},
             )
             continue
         conn.execute(
-            """CREATE (:Termin {id: $id, datum: date($datum), ort: $ort,
-                                beginn: $beginn, dauer_minuten: $dauer})""",
-            {"id": termin_id, "datum": ev["datum"].isoformat(), "ort": ev["ort"],
+            f"""CREATE (:Termin {{id: $id, datum: date($datum), bis_datum: {_BIS_DATUM}, ort: $ort,
+                                 beginn: $beginn, dauer_minuten: $dauer}})""",
+            {"id": termin_id, "datum": ev["datum"].isoformat(), "bis": _bis(ev), "ort": ev["ort"],
              "beginn": ev["beginn"], "dauer": ev["dauer_minuten"]},
         )
         conn.execute(

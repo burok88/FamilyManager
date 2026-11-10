@@ -127,6 +127,10 @@ SPALTEN = [
     # Fingerabdruck dessen, was zuletzt eingetragen wurde. Weicht der aktuelle Stand ab,
     # hat sich der Termin in ontoFam geaendert und der Eintrag wird ersetzt.
     "ALTER TABLE Termin ADD IF NOT EXISTS kalender_stand STRING DEFAULT ''",
+    # Letzter Tag eines mehrtaegigen Termins ("vom 24. bis 31.12."), einschliesslich.
+    # Leer (NULL) = eintaegig. datum bleibt der erste Tag und damit der Schluessel fuer
+    # Erinnerungen und Erledigungen.
+    "ALTER TABLE Termin ADD IF NOT EXISTS bis_datum DATE",
 ]
 
 # Einmalige Nacharbeit, wenn eine Spalte neu dazukommt -- fuer Bestandsdaten, bei denen

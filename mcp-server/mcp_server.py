@@ -50,6 +50,8 @@ server = MCPServer(
         "Verschiebt sich ein Termin, termin_verschieben benutzen -- keine zweite Aufgabe "
         "anlegen. Faellt ein Termin weg, termin_loeschen; die ganze Aufgabe aufgabe_loeschen. "
         "Gibt es mehrere Aufgaben mit demselben Namen, das Datum eines ihrer Termine mitgeben. "
+        "Geht etwas ueber mehrere Tage ('vom 24. bis 31.12.', 'eine Woche'), bis_datum setzen -- "
+        "nicht nur den ersten Tag. "
         "Fuer Fragen, die keines der "
         "fertigen Werkzeuge abdeckt, zuerst schema_beschreiben aufrufen und dann "
         "mit graph_abfragen eine eigene Cypher-Abfrage stellen."
@@ -169,10 +171,13 @@ def aufgabe_anlegen(
     dauer_minuten: int = 0,
     beschreibung: str = "",
     vorlaufzeit_tage: int = 1,
+    bis_datum: str = "",
 ) -> dict:
     """Neue einmalige Aufgabe mit Termin anlegen.
 
-    datum: YYYY-MM-DD. uhrzeit: HH:MM, leer lassen bei ganztaegigen Terminen.
+    datum: YYYY-MM-DD, bei mehrtaegigen Terminen der erste Tag. bis_datum: letzter Tag
+    eines mehrtaegigen Termins ("vom 24. bis 31.12.", "eine Woche ab dem 24." -> 30.12.),
+    sonst leer. uhrzeit: HH:MM, leer lassen bei ganztaegigen Terminen.
     person: wer die Aufgabe erledigt. betrifft: um wen es geht -- bei "Max bringt
     Lena zum Hautarzt" ist person=Max und betrifft=Lena.
     ort: wo der Termin stattfindet, z.B. "Allgaeu" -- wichtig, damit erkennbar ist,
@@ -190,7 +195,7 @@ def aufgabe_anlegen(
     aufgabe = _post("/api/aufgaben", {"name": name, "beschreibung": beschreibung, "kategorie": "Einmalig"})
     try:
         termin = _post("/api/aufgabe-termine", {
-            "aufgabe_id": aufgabe["id"], "datum": datum, "ort": ort,
+            "aufgabe_id": aufgabe["id"], "datum": datum, "bis_datum": bis_datum, "ort": ort,
             "beginn": uhrzeit, "dauer_minuten": dauer_minuten,
         })
     except RuntimeError as e:
@@ -200,6 +205,7 @@ def aufgabe_anlegen(
         return {"fehler": str(e)}
 
     ergebnis = {"aufgabe": name, "aufgabe_id": aufgabe["id"], "datum": termin["datum"],
+                **({"bis_datum": termin["bis_datum"]} if termin.get("bis_datum") else {}),
                 "uhrzeit": termin["beginn"], "ort": termin["ort"],
                 "dauer_minuten": termin["dauer_minuten"]}
     if termin.get("im_kalender"):
@@ -431,12 +437,15 @@ def termin_verschieben(
     uhrzeit: str | None = None,
     dauer_minuten: int | None = None,
     ort: str | None = None,
+    neues_bis_datum: str | None = None,
 ) -> dict:
     """Einen bestehenden Termin verschieben oder aendern ("der Zahnarzt ist jetzt am 24.
     statt am 28."). KEINE neue Aufgabe anlegen, wenn sich nur der Termin aendert.
 
     datum: bisheriges Datum des Termins (YYYY-MM-DD) -- damit ist auch klar, welche von
-    mehreren gleichnamigen Aufgaben gemeint ist. neues_datum: leer = Tag bleibt.
+    mehreren gleichnamigen Aufgaben gemeint ist. neues_datum: leer = Tag bleibt; bei einem
+    mehrtaegigen Termin wandert das Ende mit, die Dauer bleibt. neues_bis_datum: letzter
+    Tag ("geht bis zum 31.12."), "" = eintaegig, weglassen = bleibt.
     uhrzeit: neue Uhrzeit HH:MM, "" = ganztaegig, weglassen = bleibt. dauer_minuten und
     ort: weglassen = bleibt. Der Eintrag im Familienkalender wird automatisch ersetzt.
     Termine aus dem Google-Kalender (Kalender-Import) dort verschieben, nicht hier."""
@@ -445,10 +454,12 @@ def termin_verschieben(
         t = _termin_der_aufgabe(a, datum)
     except ValueError as e:
         return {"fehler": str(e)}
-    body = {k: v for k, v in (("datum", neues_datum or None), ("beginn", uhrzeit),
-                              ("dauer_minuten", dauer_minuten), ("ort", ort)) if v is not None}
+    body = {k: v for k, v in (("datum", neues_datum or None), ("bis_datum", neues_bis_datum),
+                              ("beginn", uhrzeit), ("dauer_minuten", dauer_minuten), ("ort", ort))
+            if v is not None}
     if not body:
-        return {"fehler": "Nichts zu aendern: neues_datum, uhrzeit, dauer_minuten oder ort angeben."}
+        return {"fehler": "Nichts zu aendern: neues_datum, neues_bis_datum, uhrzeit, dauer_minuten "
+                          "oder ort angeben."}
     r = _http.put(f"{API}/api/aufgabe-termine/{t['termin_id']}", json=body, timeout=30)
     daten = r.json()
     return daten if r.ok else {"fehler": daten.get("error")}

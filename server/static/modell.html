@@ -330,6 +330,7 @@
         <form id="form-aufgabe-termin">
           <label>Aufgabe <select id="auftermin-aufgabe"></select></label>
           <label>Datum <input type="date" id="auftermin-datum" required></label>
+          <label>bis (optional) <input type="date" id="auftermin-bis" placeholder="leer = ein Tag"></label>
           <label>Uhrzeit <input type="time" id="auftermin-beginn" placeholder="leer = ganztägig"></label>
           <label>Ort <input type="text" id="auftermin-ort" placeholder="leer = zuhause"></label>
           <label>Dauer (Minuten) <input type="number" id="auftermin-dauer" min="0" step="15" placeholder="0 = unbekannt"></label>
@@ -495,12 +496,17 @@
     return `${t}.${m}.${j}`;
   }
 
+  function zeitraumDe(von, bis) {
+    return bis && bis !== von ? `${datumDe(von)} – ${datumDe(bis)}` : datumDe(von);
+  }
+
   // Wann eine Aufgabe dran ist -- daran unterscheiden sich gleichnamige Aufgaben.
   // Kommende Termine zuerst (höchstens drei), sonst der letzte vergangene.
   function aufgabeWann(a) {
-    const termin = t => datumDe(t.datum) + (t.uhrzeit ? ` ${t.uhrzeit}` : "");
+    const termin = t => zeitraumDe(t.datum, t.bis_datum) + (t.uhrzeit ? ` ${t.uhrzeit}` : "");
     const termine = a.termine || [];
-    const kommend = termine.filter(t => t.datum >= heuteIso());
+    // Laufende mehrtägige Termine zählen als kommend, bis ihr letzter Tag vorbei ist.
+    const kommend = termine.filter(t => (t.bis_datum || t.datum) >= heuteIso());
     if (kommend.length) {
       const mehr = kommend.length > 3 ? ` +${kommend.length - 3} weitere` : "";
       return kommend.slice(0, 3).map(termin).join(", ") + mehr;
@@ -525,7 +531,7 @@
         a.ort ? `Ort: ${a.ort}` : null,
         a.prozess ? `Prozess: ${a.prozess} (#${a.reihenfolge})` : null,
       ].filter(Boolean).join(" · ");
-      const imKalender = (a.termine || []).some(t => t.im_kalender && t.datum >= heuteIso());
+      const imKalender = (a.termine || []).some(t => t.im_kalender && (t.bis_datum || t.datum) >= heuteIso());
       const tags = [a.kategorie, imKalender ? "im Kalender" : null].filter(Boolean)
         .map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
       const row = document.createElement("div");
@@ -645,7 +651,7 @@
     items.forEach(z => {
       const row = document.createElement("div");
       row.className = "row";
-      const teile = [z.datum, z.beginn || "ganztägig"];
+      const teile = [zeitraumDe(z.datum, z.bis_datum), z.beginn || "ganztägig"];
       if (z.ort) teile.push(z.ort);
       if (z.dauer_minuten) teile.push(`${z.dauer_minuten} min`);
       row.innerHTML = `<div class="main"><span class="name">${escapeHtml(z.aufgabe)}</span><span class="sub">${escapeHtml(teile.join(" · "))}</span></div><button class="delete">✕</button>`;
@@ -662,6 +668,7 @@
     const payload = {
       aufgabe_id: document.getElementById("auftermin-aufgabe").value,
       datum: document.getElementById("auftermin-datum").value,
+      bis_datum: document.getElementById("auftermin-bis").value,
       beginn: document.getElementById("auftermin-beginn").value,
       ort: document.getElementById("auftermin-ort").value.trim(),
       dauer_minuten: Number(document.getElementById("auftermin-dauer").value) || 0
@@ -671,8 +678,13 @@
       return;
     }
     setStatus("status-auftermin", "Speichere …");
-    await postJson("api/aufgabe-termine", payload);
-    ["auftermin-datum", "auftermin-beginn", "auftermin-ort", "auftermin-dauer"]
+    const res = await postJson("api/aufgabe-termine", payload);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setStatus("status-auftermin", err.error || "Fehler beim Speichern.", "error");
+      return;
+    }
+    ["auftermin-datum", "auftermin-bis", "auftermin-beginn", "auftermin-ort", "auftermin-dauer"]
       .forEach(id => { document.getElementById(id).value = ""; });
     setStatus("status-auftermin", "Termin gesetzt.", "ok");
     await refreshAll();
