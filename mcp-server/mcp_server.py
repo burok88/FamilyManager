@@ -136,7 +136,10 @@ def person_anlegen(name: str, rolle: str = "Sonstiges") -> dict:
 
 @server.tool()
 def aufgaben_auflisten() -> list[dict]:
-    """Alle Aufgaben mit Ort, Prozess und Kategorie (z.B. 'Kalender-Import')."""
+    """Alle Aufgaben mit Ort, Prozess und Kategorie (z.B. 'Kalender-Import'), dazu ihre
+    Termine (datum, uhrzeit, im_kalender), Zustaendige, Betroffene und bei Muell die
+    Tonnen mit dem naechsten Abholtag. Gleichnamige Aufgaben unterscheiden sich ueber
+    ihre Termine."""
     return _get("/api/aufgaben")
 
 

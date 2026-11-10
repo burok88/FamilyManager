@@ -485,19 +485,55 @@
 
   // --- Aufgaben (mit Ort/Prozess-Auswahl) ---
 
+  function heuteIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function datumDe(iso) {
+    const [j, m, t] = iso.split("-");
+    return `${t}.${m}.${j}`;
+  }
+
+  // Wann eine Aufgabe dran ist -- daran unterscheiden sich gleichnamige Aufgaben.
+  // Kommende Termine zuerst (höchstens drei), sonst der letzte vergangene.
+  function aufgabeWann(a) {
+    const termin = t => datumDe(t.datum) + (t.uhrzeit ? ` ${t.uhrzeit}` : "");
+    const termine = a.termine || [];
+    const kommend = termine.filter(t => t.datum >= heuteIso());
+    if (kommend.length) {
+      const mehr = kommend.length > 3 ? ` +${kommend.length - 3} weitere` : "";
+      return kommend.slice(0, 3).map(termin).join(", ") + mehr;
+    }
+    if (termine.length) return `zuletzt ${termin(termine[termine.length - 1])}`;
+    const tonnen = (a.tonnen || []).filter(t => t.naechster);
+    if (tonnen.length) return tonnen.map(t => `${t.tonne} ${datumDe(t.naechster)}`).join(", ");
+    return "ohne Termin";
+  }
+
   async function loadAufgaben() {
     const res = await fetch("api/aufgaben");
     const items = await res.json();
     const listEl = document.getElementById("list-aufgabe");
     listEl.innerHTML = items.length ? "" : '<div class="empty">Noch keine Aufgaben.</div>';
     items.forEach(a => {
-      const sub = [a.ort ? `Ort: ${a.ort}` : null, a.prozess ? `Prozess: ${a.prozess} (#${a.reihenfolge})` : null]
-        .filter(Boolean).join(" · ");
+      const wann = aufgabeWann(a);
+      const sub = [
+        wann,
+        a.zustaendig?.length ? `Zuständig: ${a.zustaendig.join(", ")}` : null,
+        a.betrifft?.length ? `Betrifft: ${a.betrifft.join(", ")}` : null,
+        a.ort ? `Ort: ${a.ort}` : null,
+        a.prozess ? `Prozess: ${a.prozess} (#${a.reihenfolge})` : null,
+      ].filter(Boolean).join(" · ");
+      const imKalender = (a.termine || []).some(t => t.im_kalender && t.datum >= heuteIso());
+      const tags = [a.kategorie, imKalender ? "im Kalender" : null].filter(Boolean)
+        .map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
       const row = document.createElement("div");
       row.className = "row";
-      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(a.name)}</span>${sub ? `<span class="sub">${escapeHtml(sub)}</span>` : ""}</div><button class="delete" data-id="${a.id}">✕</button>`;
+      row.innerHTML = `<div class="main"><span class="name">${escapeHtml(a.name)}</span>${sub ? `<span class="sub">${escapeHtml(sub)}</span>` : ""}</div>${tags}<button class="delete" data-id="${a.id}">✕</button>`;
       row.querySelector(".delete").addEventListener("click", async () => {
-        if (!confirm("Aufgabe wirklich löschen? Verknüpfungen werden mit entfernt.")) return;
+        const hinweis = wann ? ` (${wann})` : "";
+        if (!confirm(`Aufgabe „${a.name}“${hinweis} wirklich löschen? Termine und Verknüpfungen werden mit entfernt.`)) return;
         await fetch(`api/aufgaben/${a.id}`, { method: "DELETE" });
         await refreshAll();
       });

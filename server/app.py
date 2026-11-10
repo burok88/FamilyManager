@@ -387,9 +387,41 @@ def list_aufgaben():
                 "prozess": prozess,
                 "reihenfolge": reihenfolge,
                 "rueckmeldung": rueckmeldung is not False,
+                "termine": [],
+                "zustaendig": [],
+                "betrifft": [],
+                "tonnen": [],
             }
         )
+    _aufgaben_details({a["id"]: a for a in items})
     return jsonify(items)
+
+
+def _aufgaben_details(nach_id: dict[str, dict]) -> None:
+    """Termine und Personen je Aufgabe -- damit zwei gleichnamige Aufgaben ("Zahnarzt")
+    in der Liste und fuer eine KI unterscheidbar sind. Je eine Abfrage statt einer grossen
+    mit OPTIONAL MATCH: die wuerde Termine und Personen zu einem Kreuzprodukt vermehren."""
+    def zeilen(cypher: str, params: dict | None = None):
+        ergebnis = _conn.execute(cypher, params or {})
+        while ergebnis.has_next():
+            yield ergebnis.get_next()
+
+    for aid, tid, datum, beginn, im_kalender in zeilen(
+            """MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin)
+               RETURN a.id, t.id, t.datum, t.beginn, t.im_kalender ORDER BY t.datum, t.beginn"""):
+        nach_id[aid]["termine"].append({"termin_id": tid, "datum": datum.isoformat(),
+                                        "uhrzeit": beginn or "", "im_kalender": bool(im_kalender)})
+    for aid, person in zeilen("MATCH (p:Person)-[:VERANTWORTLICH_FUER]->(a:Aufgabe) RETURN a.id, p.name ORDER BY p.name"):
+        nach_id[aid]["zustaendig"].append(person)
+    for aid, person in zeilen("MATCH (a:Aufgabe)-[:BETRIFFT]->(p:Person) RETURN a.id, p.name ORDER BY p.name"):
+        nach_id[aid]["betrifft"].append(person)
+    # Muell: die Termine haengen an der Tonne -- nur der naechste und wie viele noch kommen.
+    for aid, tonne, naechster, anzahl in zeilen(
+            """MATCH (a:Aufgabe)-[:BEZIEHT_SICH_AUF]->(r:Ressource)
+               OPTIONAL MATCH (r)-[:RESSOURCE_HAT_TERMIN]->(t:Termin) WHERE t.datum >= $heute
+               RETURN a.id, r.name, min(t.datum), count(t) ORDER BY r.name""", {"heute": date.today()}):
+        nach_id[aid]["tonnen"].append({"tonne": tonne, "naechster": naechster.isoformat() if naechster else None,
+                                       "kommende": anzahl})
 
 
 @app.put("/api/aufgaben/<aufgabe_id>/rueckmeldung")
