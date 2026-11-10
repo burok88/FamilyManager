@@ -98,10 +98,11 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 
 ## KI-Anbindung per MCP (Claude Desktop, Gemini CLI, Home Assistant)
 
-`mcp-server/mcp_server.py` stellt die Ontologie als 23 Tools bereit (u.a. `erinnerungen_vorschau`,
+`mcp-server/mcp_server.py` stellt die Ontologie als 26 Tools bereit (u.a. `erinnerungen_vorschau`,
 `erinnerung_testen`): `personen_auflisten`,
 `person_anlegen`, `aufgaben_auflisten`, `anstehende_aufgaben(tage, person)`,
 `aufgabe_anlegen(name, datum, person, betrifft, ort, uhrzeit, dauer_minuten, …)`,
+`termin_verschieben(aufgabe, datum, neues_datum, uhrzeit, …)`, `termin_loeschen`, `aufgabe_loeschen`,
 `zustaendigkeit_setzen`, `betroffene_person_setzen`, `als_erledigt_markieren`,
 `erledigung_zuruecksetzen`, `rueckblick(tage, person)`, `stundenplan_setzen`,
 `stundenplan_abfragen`, `stundenplan_eintragen`, `stundenplan_loeschen`,
@@ -110,6 +111,12 @@ CPU-Typ `kvm64`, meldet `start.py` das und rät zu CPU-Typ `host`.
 Damit funktioniert z.B. *"Max muss Lena am Dienstag den 22. September zum Hautarzt
 bringen"* → die KI legt Aufgabe + Termin an und ordnet Max zu; *"Was steht diese Woche
 an?"* → Abfrage. Voraussetzung: `app.py` läuft.
+
+Gleichnamige Aufgaben („Zahnarzt“ im Mai und im Oktober) unterscheiden die Werkzeuge über
+das Datum eines ihrer Termine; ohne Datum nennt die Meldung alle mit ihren Terminen.
+Verschiebt sich ein Termin, ändert `termin_verschieben` den bestehenden
+(`PUT /api/aufgabe-termine/<id>`) — so bleibt es eine Aufgabe, und der Kalendereintrag
+wird ersetzt. Termine aus dem Google-Kalender werden dort verschoben und gelöscht.
 
 - **Claude Desktop**: `python mcp-server/build_mcpb.py` baut `dist/ontofam.mcpb`; installiert wird
   es über Einstellungen → Erweiterungen → Erweiterte Einstellungen → "Erweiterung

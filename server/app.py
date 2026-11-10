@@ -977,6 +977,45 @@ def create_aufgabe_termin():
                     "im_kalender": im_kalender}), 201
 
 
+@app.put("/api/aufgabe-termine/<termin_id>")
+def update_aufgabe_termin(termin_id: str):
+    """Termin verschieben oder aendern: datum, beginn ('' = ganztaegig), dauer_minuten,
+    ort. Fehlende Felder bleiben, wie sie sind. Der Termin behaelt seine ID -- daran
+    haengen Erledigungen und der Kalendereintrag, den der Abgleich danach ersetzt."""
+    body = request.get_json(force=True) or {}
+    zeile = _conn.execute(
+        """MATCH (a:Aufgabe)-[:AUFGABE_HAT_TERMIN]->(t:Termin {id: $id})
+           RETURN a.name, a.kategorie, t.datum, t.beginn, t.dauer_minuten, t.ort""",
+        {"id": termin_id})
+    if not zeile.has_next():
+        return jsonify({"error": "Termin nicht gefunden."}), 404
+    name, kategorie, datum, beginn, dauer, ort = zeile.get_next()
+    if kategorie == IMPORT_KATEGORIE:
+        # Der naechste Abgleich wuerde es zuruecksetzen -- die Quelle ist der Kalender.
+        return jsonify({"error": f"'{name}' stammt aus dem Google-Kalender. Bitte dort verschieben."}), 400
+
+    neu = {"datum": datum.isoformat(), "beginn": beginn or "", "dauer_minuten": dauer or 0, "ort": ort or ""}
+    try:
+        if "datum" in body:
+            neu["datum"] = date.fromisoformat(str(body["datum"]).strip()).isoformat()
+        if "beginn" in body:
+            neu["beginn"] = _pruefe_uhrzeit(str(body["beginn"] or "").strip())
+        if "dauer_minuten" in body:
+            neu["dauer_minuten"] = max(0, int(body["dauer_minuten"] or 0))
+    except ValueError as fehler:
+        return jsonify({"error": str(fehler)}), 400
+    if "ort" in body:
+        neu["ort"] = str(body["ort"] or "").strip()
+
+    _conn.execute(
+        """MATCH (t:Termin {id: $id})
+           SET t.datum = date($datum), t.beginn = $beginn, t.dauer_minuten = $dauer, t.ort = $ort""",
+        {"id": termin_id, "datum": neu["datum"], "beginn": neu["beginn"],
+         "dauer": neu["dauer_minuten"], "ort": neu["ort"]})
+    return jsonify({"termin_id": termin_id, "aufgabe": name, **neu,
+                    "vorher": {"datum": datum.isoformat(), "beginn": beginn or ""}})
+
+
 @app.delete("/api/aufgabe-termine/<termin_id>")
 def delete_aufgabe_termin(termin_id: str):
     _conn.execute("MATCH (t:Termin {id: $id}) DETACH DELETE t", {"id": termin_id})

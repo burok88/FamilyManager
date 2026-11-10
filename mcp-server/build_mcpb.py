@@ -22,7 +22,7 @@ MANIFEST = {
     "manifest_version": "0.2",
     "name": "ontofam",
     "display_name": "ontoFam – Haushalts-Ontologie",
-    "version": "0.12.1",
+    "version": "0.13.0",
     "description": "Personen, Aufgaben und Termine der Familie abfragen und anlegen.",
     "long_description": (
         "Stellt die Haushalts-Ontologie (Kuzu-Graph hinter app.py) als Tools bereit: "
@@ -79,6 +79,9 @@ MANIFEST = {
         {"name": "rueckmeldung_setzen", "description": "Festlegen, ob Erledigungen einer Aufgabe verfolgt werden"},
         {"name": "in_kalender_eintragen", "description": "Termine einer Aufgabe in den Familienkalender eintragen"},
         {"name": "aus_kalender_entfernen", "description": "Eintraege einer Aufgabe aus dem Familienkalender nehmen"},
+        {"name": "termin_verschieben", "description": "Bestehenden Termin verschieben oder aendern"},
+        {"name": "termin_loeschen", "description": "Einzelnen Termin einer Aufgabe loeschen"},
+        {"name": "aufgabe_loeschen", "description": "Aufgabe samt Terminen loeschen"},
         {"name": "zustaendigkeit_setzen", "description": "Aufgabe einer Person zuordnen"},
         {"name": "als_erledigt_markieren", "description": "Festhalten, dass eine Aufgabe erledigt wurde"},
         {"name": "erledigung_zuruecksetzen", "description": "Eine Erledigung zuruecknehmen"},

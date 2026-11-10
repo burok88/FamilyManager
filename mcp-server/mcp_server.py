@@ -47,6 +47,9 @@ server = MCPServer(
         "uebernehmen, ein Aufruf je Tonne -- nicht als einzelne Aufgaben. "
         "Neue Termine landen in der Regel von selbst im Familienkalender; soll etwas nicht "
         "hinein, aus_kalender_entfernen. "
+        "Verschiebt sich ein Termin, termin_verschieben benutzen -- keine zweite Aufgabe "
+        "anlegen. Faellt ein Termin weg, termin_loeschen; die ganze Aufgabe aufgabe_loeschen. "
+        "Gibt es mehrere Aufgaben mit demselben Namen, das Datum eines ihrer Termine mitgeben. "
         "Fuer Fragen, die keines der "
         "fertigen Werkzeuge abdeckt, zuerst schema_beschreiben aufrufen und dann "
         "mit graph_abfragen eine eigene Cypher-Abfrage stellen."
@@ -82,6 +85,41 @@ def _finde(items: list[dict], name: str, was: str) -> dict:
         if len(kandidaten) > 1:
             raise ValueError(f"{was} '{name}' ist mehrdeutig. Vorhanden: {vorhanden}")
     raise ValueError(f"{was} '{name}' nicht gefunden. Vorhanden: {vorhanden}")
+
+
+def _finde_aufgabe(name: str, datum: str = "") -> dict:
+    """Wie _finde, aber gleichnamige Aufgaben ("Zahnarzt" im Mai und im Oktober) lassen
+    sich ueber das Datum eines ihrer Termine auseinanderhalten."""
+    aufgaben = _get("/api/aufgaben")
+    try:
+        return _finde(aufgaben, name, "Aufgabe")
+    except ValueError as e:
+        if "mehrdeutig" not in str(e):
+            raise
+    gesucht = name.strip().lower()
+    gleich = ([a for a in aufgaben if a["name"].strip().lower() == gesucht]
+              or [a for a in aufgaben if gesucht in a["name"].lower()])
+    termine = _get("/api/aufgabe-termine")
+    daten = {a["id"]: sorted({t["datum"] for t in termine if t["aufgabe_id"] == a["id"]}) for a in gleich}
+    if datum:
+        passend = [a for a in gleich if datum in daten[a["id"]]]
+        if len(passend) == 1:
+            return passend[0]
+    liste = "; ".join(f"{a['name']} ({', '.join(daten[a['id']]) or 'ohne Termin'})" for a in gleich)
+    raise ValueError(f"Aufgabe '{name}' gibt es mehrfach: {liste}. "
+                     "Mit datum (ein Termin der gemeinten Aufgabe) angeben, welche gemeint ist.")
+
+
+def _termin_der_aufgabe(aufgabe: dict, datum: str) -> dict:
+    """Der direkte Termin einer Aufgabe an einem Tag."""
+    termine = [t for t in _get("/api/aufgabe-termine") if t["aufgabe_id"] == aufgabe["id"]]
+    am_tag = [t for t in termine if t["datum"] == datum]
+    if len(am_tag) == 1:
+        return am_tag[0]
+    vorhanden = ", ".join(f"{t['datum']} {t['beginn']}".strip() for t in termine) or "keine"
+    if am_tag:
+        raise ValueError(f"'{aufgabe['name']}' hat am {datum} mehrere Termine ({vorhanden}).")
+    raise ValueError(f"'{aufgabe['name']}' hat am {datum} keinen Termin. Termine: {vorhanden}")
 
 
 @server.tool()
@@ -177,11 +215,12 @@ def aufgabe_anlegen(
 
 
 @server.tool()
-def betroffene_person_setzen(aufgabe: str, person: str) -> dict:
+def betroffene_person_setzen(aufgabe: str, person: str, datum: str = "") -> dict:
     """Festhalten, um wen es bei einer bestehenden Aufgabe geht (BETRIFFT).
-    Unterscheidet sich von zustaendigkeit_setzen: das ist, wer die Aufgabe erledigt."""
+    Unterscheidet sich von zustaendigkeit_setzen: das ist, wer die Aufgabe erledigt.
+    datum: nur noetig, wenn es mehrere Aufgaben mit dem Namen gibt -- ein Termin der gemeinten."""
     try:
-        a = _finde(_get("/api/aufgaben"), aufgabe, "Aufgabe")
+        a = _finde_aufgabe(aufgabe, datum)
         p = _finde(_get("/api/personen"), person, "Person")
     except ValueError as e:
         return {"fehler": str(e)}
@@ -358,7 +397,7 @@ def in_kalender_eintragen(aufgabe: str, datum: str = "", erneut: bool = False) -
     erneut=True legt auch Eintraege neu an, die im Kalender geloescht wurden.
     Muelltermine und Termine, die aus dem Kalender stammen, kommen nie hinein.
     Wird ein Termin in ontoFam geloescht oder geaendert, zieht ontoFam den Eintrag selbst nach."""
-    return _kalender("post", aufgabe, {"datum": datum, "erneut": erneut})
+    return _kalender("post", aufgabe, datum, {"datum": datum, "erneut": erneut})
 
 
 @server.tool()
@@ -366,12 +405,12 @@ def aus_kalender_entfernen(aufgabe: str, datum: str = "") -> dict:
     """Eintraege einer Aufgabe wieder aus dem Familienkalender nehmen ("das muss nicht in
     den Kalender"). Die Aufgabe und ihre Termine bleiben in ontoFam.
     datum: YYYY-MM-DD, nur dieser Termin; leer = alle kuenftigen."""
-    return _kalender("delete", aufgabe, {"datum": datum})
+    return _kalender("delete", aufgabe, datum, {"datum": datum})
 
 
-def _kalender(methode: str, aufgabe: str, body: dict) -> dict:
+def _kalender(methode: str, aufgabe: str, datum: str, body: dict) -> dict:
     try:
-        a = _finde(_get("/api/aufgaben"), aufgabe, "Aufgabe")
+        a = _finde_aufgabe(aufgabe, datum)
     except ValueError as e:
         return {"fehler": str(e)}
     r = _http.request(methode, f"{API}/api/aufgaben/{a['id']}/kalender", json=body, timeout=120)
@@ -379,6 +418,77 @@ def _kalender(methode: str, aufgabe: str, body: dict) -> dict:
     if not r.ok:
         return {**{k: v for k, v in daten.items() if k != "error"}, "fehler": daten.get("error")}
     return daten
+
+
+@server.tool()
+def termin_verschieben(
+    aufgabe: str,
+    datum: str,
+    neues_datum: str = "",
+    uhrzeit: str | None = None,
+    dauer_minuten: int | None = None,
+    ort: str | None = None,
+) -> dict:
+    """Einen bestehenden Termin verschieben oder aendern ("der Zahnarzt ist jetzt am 24.
+    statt am 28."). KEINE neue Aufgabe anlegen, wenn sich nur der Termin aendert.
+
+    datum: bisheriges Datum des Termins (YYYY-MM-DD) -- damit ist auch klar, welche von
+    mehreren gleichnamigen Aufgaben gemeint ist. neues_datum: leer = Tag bleibt.
+    uhrzeit: neue Uhrzeit HH:MM, "" = ganztaegig, weglassen = bleibt. dauer_minuten und
+    ort: weglassen = bleibt. Der Eintrag im Familienkalender wird automatisch ersetzt.
+    Termine aus dem Google-Kalender (Kalender-Import) dort verschieben, nicht hier."""
+    try:
+        a = _finde_aufgabe(aufgabe, datum)
+        t = _termin_der_aufgabe(a, datum)
+    except ValueError as e:
+        return {"fehler": str(e)}
+    body = {k: v for k, v in (("datum", neues_datum or None), ("beginn", uhrzeit),
+                              ("dauer_minuten", dauer_minuten), ("ort", ort)) if v is not None}
+    if not body:
+        return {"fehler": "Nichts zu aendern: neues_datum, uhrzeit, dauer_minuten oder ort angeben."}
+    r = _http.put(f"{API}/api/aufgabe-termine/{t['termin_id']}", json=body, timeout=30)
+    daten = r.json()
+    return daten if r.ok else {"fehler": daten.get("error")}
+
+
+@server.tool()
+def termin_loeschen(aufgabe: str, datum: str) -> dict:
+    """Einen einzelnen Termin einer Aufgabe loeschen ("der Termin am 28.12. faellt weg").
+    Der Eintrag im Familienkalender verschwindet mit. Bleibt eine einmalige Aufgabe
+    danach ohne Termin zurueck, wird sie mitgeloescht.
+    Termine aus dem Google-Kalender (Kalender-Import) dort loeschen, nicht hier."""
+    try:
+        a = _finde_aufgabe(aufgabe, datum)
+        if a.get("kategorie") == "Kalender-Import":
+            return {"fehler": f"'{a['name']}' stammt aus dem Google-Kalender. Bitte dort loeschen."}
+        t = _termin_der_aufgabe(a, datum)
+    except ValueError as e:
+        return {"fehler": str(e)}
+    _http.delete(f"{API}/api/aufgabe-termine/{t['termin_id']}", timeout=30).raise_for_status()
+    ergebnis = {"aufgabe": a["name"], "geloescht": {"datum": t["datum"], "uhrzeit": t["beginn"]}}
+    uebrig = [x for x in _get("/api/aufgabe-termine") if x["aufgabe_id"] == a["id"]]
+    if not uebrig and a.get("kategorie") == "Einmalig":
+        _http.delete(f"{API}/api/aufgaben/{a['id']}", timeout=30).raise_for_status()
+        ergebnis["aufgabe_geloescht"] = True
+    return ergebnis
+
+
+@server.tool()
+def aufgabe_loeschen(aufgabe: str, datum: str = "") -> dict:
+    """Eine Aufgabe samt ihrer Termine, Zustaendigkeiten und Erledigungen loeschen.
+    Ihre Eintraege im Familienkalender verschwinden mit. Nur auf ausdruecklichen Wunsch.
+    datum: nur noetig, wenn es mehrere Aufgaben mit dem Namen gibt -- ein Termin der gemeinten.
+    Fuer einen einzelnen Termin termin_loeschen nehmen. Termine aus dem Google-Kalender
+    (Kalender-Import) dort loeschen, nicht hier."""
+    try:
+        a = _finde_aufgabe(aufgabe, datum)
+    except ValueError as e:
+        return {"fehler": str(e)}
+    if a.get("kategorie") == "Kalender-Import":
+        return {"fehler": f"'{a['name']}' stammt aus dem Google-Kalender. Bitte dort loeschen."}
+    termine = sorted(t["datum"] for t in _get("/api/aufgabe-termine") if t["aufgabe_id"] == a["id"])
+    _http.delete(f"{API}/api/aufgaben/{a['id']}", timeout=30).raise_for_status()
+    return {"geloescht": a["name"], "termine": termine}
 
 
 def _mit_id(pfad: str, name: str, was: str) -> dict:
@@ -409,7 +519,7 @@ def als_erledigt_markieren(
     danach zurueck (termine_in_der_naehe) -- dann den passenden waehlen und erneut
     aufrufen, im Zweifel nachfragen."""
     try:
-        a = _mit_id("/api/aufgaben", aufgabe, "Aufgabe")
+        a = _finde_aufgabe(aufgabe, datum)
         p = _mit_id("/api/personen", person, "Person") if person else None
         r = _mit_id("/api/ressourcen", ressource, "Ressource") if ressource else None
     except ValueError as e:
@@ -429,7 +539,7 @@ def erledigung_zuruecksetzen(aufgabe: str, datum: str) -> dict:
     """Eine versehentlich festgehaltene Erledigung zuruecknehmen. Der Termin gilt danach
     wieder als offen (oder als verpasst, wenn sein Tag vorbei ist)."""
     try:
-        a = _mit_id("/api/aufgaben", aufgabe, "Aufgabe")
+        a = _finde_aufgabe(aufgabe, datum)
     except ValueError as e:
         return {"fehler": str(e)}
     antwort = _http.delete(f"{API}/api/erledigungen",
@@ -475,12 +585,13 @@ def erinnerung_testen(person: str) -> dict:
 
 
 @server.tool()
-def zustaendigkeit_setzen(person: str, aufgabe: str, vorlaufzeit_tage: int = 1) -> dict:
+def zustaendigkeit_setzen(person: str, aufgabe: str, vorlaufzeit_tage: int = 1, datum: str = "") -> dict:
     """Eine bestehende Aufgabe einer Person zuordnen (oder die Vorlaufzeit aendern).
-    Ersetzt eine bestehende Zuordnung dieses Paars."""
+    Ersetzt eine bestehende Zuordnung dieses Paars.
+    datum: nur noetig, wenn es mehrere Aufgaben mit dem Namen gibt -- ein Termin der gemeinten."""
     try:
         p = _finde(_get("/api/personen"), person, "Person")
-        a = _finde(_get("/api/aufgaben"), aufgabe, "Aufgabe")
+        a = _finde_aufgabe(aufgabe, datum)
     except ValueError as e:
         return {"fehler": str(e)}
     _post("/api/zustaendigkeiten", {
